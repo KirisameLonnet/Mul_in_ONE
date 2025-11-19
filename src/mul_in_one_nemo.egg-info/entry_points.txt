@@ -1,0 +1,2 @@
+[console_scripts]
+mul-in-one-nemo = mul_in_one_nemo.cli:main

@@ -1,0 +1,82 @@
+Metadata-Version: 2.4
+Name: mul-in-one-nemo
+Version: 0.1.0
+Summary: Multi-agent social chat CLI built on NVIDIA NeMo Agent Toolkit
+Author: Mul in One Team
+Requires-Python: >=3.11
+Description-Content-Type: text/markdown
+Requires-Dist: nvidia-nat>=0.6.0
+Requires-Dist: nvidia-nat-langchain>=1.3.0
+Requires-Dist: pyyaml>=6.0
+Provides-Extra: dev
+Requires-Dist: pytest>=8.0; extra == "dev"
+
+# Mul-in-One NeMo Playground
+
+
+## 当前项目体系
+- **运行栈**：`uv`/`direnv` 负责虚拟环境，`external/NeMo-Agent-Toolkit` 以源码方式安装，CLI 通过 `WorkflowBuilder` 注册 NIM LLM 与自定义函数。
+- **核心模块**：
+  - `src/mul_in_one_nemo/config.py` 读取环境变量与 persona 配置，统一生成 `Settings`。
+   - `persona.py` + `personas/*.yaml` 描述角色语气、活跃度、常用语与 API 绑定。
+  - `scheduler.py` 控制每回合允许发言的 persona；`memory.py` 维护共享对话历史。
+  - `runtime.py` 封装 `WorkflowBuilder`，为每个 persona 注入 `mul_in_one_persona` Function。
+  - `cli.py` 负责参数解析、交互循环与调用 `runtime`。
+- **Persona 规范**：`docs/persona_spec.md` 定义字段含义、Prompt 写法与校验清单，保障 RolePlay 场景一致性。
+- **验证**：`tests/` 目前覆盖 persona loader 与调度器；后续可增加集成测试脚本。
+
+## 业务逻辑
+1. CLI 启动后加载 `Settings` 与 persona YAML，构造共享 `ConversationMemory` 与 `TurnScheduler`。
+2. `MultiAgentRuntime` 在上下文管理器中启动 `WorkflowBuilder`，注册统一的 NIM LLM，并为每个 persona 生成函数句柄。
+3. 用户输入或 `--message` 文本写入 shared memory，scheduler 根据 proactivity、冷却与上下文标签挑选发言 persona。
+4. 每个 persona 函数收到 `history` + `user_message`，通过 LangChain LLM（NIM 模型）生成回复，再写回 shared memory。
+5. CLI 输出经过格式化的 `persona_name> response`，形成多角色对话闭环。
+
+## 可以实现的功能
+- 多 persona 群聊：同一轮可触发多个角色，模拟“朋友圈”多线程对话。
+- Persona 模板管理：通过 YAML 自定义语气、背景、口头禅、主动性，并可为单个 persona 指定专属 `api` 配置（模型/URL/API Key/temperature）。
+- 轻量记忆与调度：共享历史 + 主动度算法在 CLI 层决定谁先说，便于快速迭代策略。
+- NeMo 原生集成：直接调用 NIM API（LLM、未来 Guardrails/Memory），方便扩展至更多 NeMo 组件。
+- 单回合广播：`--message` 支持批量生成回复，适合自动化脚本或冒烟测试。
+
+## 如何使用
+1. **准备环境**
+   ```bash
+   direnv allow
+   uv venv .venv
+   source .venv/bin/activate
+   mkdir -p external
+   git clone https://github.com/NVIDIA/NeMo-Agent-Toolkit.git external/NeMo-Agent-Toolkit
+   uv pip install -e external/NeMo-Agent-Toolkit[langchain]
+   uv pip install -e .[dev]
+   ```
+2. **配置 NIM 凭证**（例如写入 `.envrc.local`）
+   ```bash
+   export MUL_IN_ONE_NIM_MODEL="meta/llama-3.1-70b-instruct"
+   export MUL_IN_ONE_NIM_BASE_URL="https://integrate.api.nvidia.com/v1"
+   export MUL_IN_ONE_NEMO_API_KEY="<NVIDIA-API-KEY>"
+   ```
+   也可直接设置 `NVIDIA_API_KEY`。
+3. **（可选）集中管理 API 配置**
+    - 复制 `personas/api_configuration.sample.yaml`，填写真实 URL / 模型 / API Key（默认示例已指向 SiliconFlow `Qwen/Qwen3-32B`，`api_key` 留空待填写）。
+    - 通过环境变量或 CLI 传参引用：
+     ```bash
+       export MUL_IN_ONE_API_CONFIG="personas/api_configuration.yaml"
+     ```
+       或运行时追加 `--api-config personas/api_configuration.yaml`。
+    - `default_api` 描述 CLI 默认使用的模型。persona YAML 可在每个 persona 下添加 `api` 字段（字符串）来引用某个 API 名称，实现绑定。
+4. **运行 CLI**
+   ```bash
+   mul-in-one-nemo --personas personas/persona.yaml --api-config personas/api_configuration.yaml
+   ```
+   - 直接回车进入交互式轮次，输入 `exit` 结束。
+   - `--message "今天聊点什么？"`：单回合广播，立即返回所有 persona 回复。
+   - `--max-turns`：限制交互轮数（默认 10）。
+
+## 如何测试
+```bash
+python -m pytest
+```
+- `tests/test_persona_loader.py`：校验 YAML 解析与默认值。
+- `tests/test_scheduler.py`：验证回合调度的排序与冷却逻辑。
+- 建议在拥有 NIM 凭证后追加集成测试，确认 CLI 能通过 `WorkflowBuilder` 调起真实模型。

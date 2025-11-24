@@ -93,7 +93,22 @@ class TurnScheduler:
             score += random.uniform(-0.1, 0.1)
             
             candidates.append((persona.name, score))
+
+        # --- 新增逻辑：优先处理被 @ 的情况 ---
+        mentioned_speakers = [name for name, score in candidates if score >= 100]
+        if mentioned_speakers:
+            # 更新状态并直接返回被提及者
+            for persona in self.personas.values():
+                if persona.name in mentioned_speakers:
+                    persona.last_turn = self.turn
+                    persona.consecutive_speaks += 1
+                else:
+                    persona.consecutive_speaks = 0
+            self.silence_count = 0
+            self.turn += 1
+            return mentioned_speakers
         
+        # --- 原有逻辑：处理主动发言的情况 ---
         # 按分数排序
         candidates.sort(key=lambda x: x[1], reverse=True)
         
@@ -106,11 +121,6 @@ class TurnScheduler:
             threshold = 0.3
         
         for name, score in candidates:
-            # 被 @ 的必选
-            if score >= 100:
-                chosen.append(name)
-                continue
-            
             # 根据分数和已选人数决定
             if score >= threshold and len(chosen) < self.max_agents:
                 # 第一个人更容易被选中

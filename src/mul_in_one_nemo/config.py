@@ -8,70 +8,109 @@ import os
 
 from .api_config import APIConfiguration, load_api_configuration
 
-DEFAULT_NIM_MODEL = "meta/llama-3.1-70b-instruct"
-DEFAULT_NIM_BASE_URL = "https://integrate.api.nvidia.com/v1"
-DEFAULT_MAX_AGENTS_PER_TURN = 2
-DEFAULT_MEMORY_WINDOW = 8
-DEFAULT_TEMPERATURE = 0.4
-DEFAULT_PERSONA_FILE = Path("personas/persona.yaml")
-DEFAULT_API_CONFIG_FILE = Path("personas/api_configuration.yaml")
+# These settings are now managed in .envrc and loaded directly.
+# DEFAULT_NIM_MODEL = ""
+# DEFAULT_NIM_BASE_URL = ""
+# DEFAULT_MAX_AGENTS_PER_TURN = 2
+# DEFAULT_MEMORY_WINDOW = 8
+# DEFAULT_TEMPERATURE = 0.4
+
+
+def _env_path(name: str, default: Path) -> Path:
+    value = os.environ.get(name)
+    if value:
+        return Path(value).expanduser()
+    return default
 
 
 @dataclass(slots=True)
 class Settings:
-    """Application-level configuration loaded from env + persona file."""
+    """Application-level configuration loaded from env."""
 
+    # Fields without default values
     persona_file: Path
-    nim_model: str = DEFAULT_NIM_MODEL
-    nim_base_url: str = DEFAULT_NIM_BASE_URL
+    nim_model: str
+    nim_base_url: str
+    max_agents_per_turn: int
+    memory_window: int
+    temperature: float
+    database_url: str
+
+    # Fields with default values
     nim_api_key: str = ""
-    max_agents_per_turn: int = DEFAULT_MAX_AGENTS_PER_TURN
-    memory_window: int = DEFAULT_MEMORY_WINDOW
-    temperature: float = DEFAULT_TEMPERATURE
     api_config_path: Path | None = None
     api_configuration: APIConfiguration | None = None
+    redis_url: str | None = None
+    encryption_key: str = ""
 
     @classmethod
     def from_env(cls, persona_file: str | None = None, api_config_file: str | None = None) -> "Settings":
+        # Load required settings from environment variables
         persona_path_str = persona_file or os.environ.get("MUL_IN_ONE_PERSONAS")
-        if persona_path_str:
-            persona_path = Path(persona_path_str).expanduser()
-        else:
-            persona_path = DEFAULT_PERSONA_FILE if DEFAULT_PERSONA_FILE.exists() else Path("personas/persona.yaml")
+        if not persona_path_str:
+            raise ValueError("Missing required environment variable: MUL_IN_ONE_PERSONAS")
+        persona_path = Path(persona_path_str).expanduser()
 
+        database_url = os.environ.get("DATABASE_URL")
+        if not database_url:
+            raise ValueError("Missing required environment variable: DATABASE_URL")
+
+        # Load optional settings from environment variables
+        config_path_str = api_config_file or os.environ.get("MUL_IN_ONE_API_CONFIG")
         api_config_path: Path | None = None
         api_configuration: APIConfiguration | None = None
         default_entry = None
-        config_path_str = api_config_file or os.environ.get("MUL_IN_ONE_API_CONFIG")
-        if not config_path_str and DEFAULT_API_CONFIG_FILE.exists():
-            config_path_str = str(DEFAULT_API_CONFIG_FILE)
         if config_path_str:
             api_config_path = Path(config_path_str).expanduser()
-            api_configuration = load_api_configuration(api_config_path)
-            default_entry = api_configuration.resolve_default()
+            if api_config_path.exists():
+                api_configuration = load_api_configuration(api_config_path)
+                default_entry = api_configuration.resolve_default()
+            else:
+                print(f"Warning: API config file not found at {api_config_path}")
 
         nim_model = os.environ.get("MUL_IN_ONE_NIM_MODEL")
+        if not nim_model and default_entry:
+            nim_model = default_entry.model
         if not nim_model:
-            nim_model = (default_entry.model if default_entry and default_entry.model else DEFAULT_NIM_MODEL)
+            nim_model = "" # Can be empty if a default entry exists without a model
 
         nim_base_url = os.environ.get("MUL_IN_ONE_NIM_BASE_URL")
+        if not nim_base_url and default_entry:
+            nim_base_url = default_entry.base_url
         if not nim_base_url:
-            nim_base_url = (default_entry.base_url if default_entry and default_entry.base_url else DEFAULT_NIM_BASE_URL)
+            nim_base_url = "" # Can be empty if a default entry exists without a base_url
 
         nim_api_key = os.environ.get("MUL_IN_ONE_NEMO_API_KEY") or os.environ.get("NVIDIA_API_KEY")
         if not nim_api_key and default_entry and default_entry.api_key:
             nim_api_key = default_entry.api_key
         nim_api_key = nim_api_key or ""
 
-        temperature_env = os.environ.get("MUL_IN_ONE_TEMPERATURE")
-        if temperature_env is not None:
-            temperature = float(temperature_env)
+        if not nim_model or not nim_base_url:
+            raise ValueError(
+                "Missing model configuration. Provide MUL_IN_ONE_NIM_MODEL and MUL_IN_ONE_NIM_BASE_URL env vars, or set a default persona entry in the API config."
+            )
+
+        temperature_str = os.environ.get("MUL_IN_ONE_TEMPERATURE")
+        if temperature_str:
+            temperature = float(temperature_str)
         elif default_entry and default_entry.temperature is not None:
             temperature = default_entry.temperature
         else:
-            temperature = DEFAULT_TEMPERATURE
-        max_agents = int(os.environ.get("MUL_IN_ONE_MAX_AGENTS", DEFAULT_MAX_AGENTS_PER_TURN))
-        memory_window = int(os.environ.get("MUL_IN_ONE_MEMORY_WINDOW", DEFAULT_MEMORY_WINDOW))
+            raise ValueError("Missing temperature: Set MUL_IN_ONE_TEMPERATURE or define in API config.")
+
+        max_agents_str = os.environ.get("MUL_IN_ONE_MAX_AGENTS")
+        if not max_agents_str:
+            raise ValueError("Missing required environment variable: MUL_IN_ONE_MAX_AGENTS")
+        max_agents = int(max_agents_str)
+
+        memory_window_str = os.environ.get("MUL_IN_ONE_MEMORY_WINDOW")
+        if not memory_window_str:
+            raise ValueError("Missing required environment variable: MUL_IN_ONE_MEMORY_WINDOW")
+        memory_window = int(memory_window_str)
+        
+        redis_url = os.environ.get("REDIS_URL")
+        encryption_key = os.environ.get("MUL_IN_ONE_ENCRYPTION_KEY", "")
+        
         return cls(
             persona_file=persona_path,
             nim_model=nim_model,
@@ -82,4 +121,7 @@ class Settings:
             temperature=temperature,
             api_config_path=api_config_path,
             api_configuration=api_configuration,
+            database_url=database_url,
+            redis_url=redis_url,
+            encryption_key=encryption_key,
         )

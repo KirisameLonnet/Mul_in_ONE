@@ -1,0 +1,16 @@
+2025-11-20 15:26:57.341 CST [60852] LOG:  starting PostgreSQL 16.11 on aarch64-apple-darwin24.6.0, compiled by clang version 21.1.2, 64-bit
+2025-11-20 15:26:57.342 CST [60852] LOG:  listening on IPv4 address "127.0.0.1", port 5432
+2025-11-20 15:26:57.342 CST [60852] LOG:  listening on IPv6 address "::1", port 5432
+2025-11-20 15:26:57.342 CST [60852] LOG:  listening on Unix socket "/tmp/.s.PGSQL.5432"
+2025-11-20 15:26:57.344 CST [60855] LOG:  database system was shut down at 2025-11-20 15:26:53 CST
+2025-11-20 15:26:57.345 CST [60852] LOG:  database system is ready to accept connections
+2025-11-20 15:28:03.979 CST [62986] FATAL:  role "postgres" does not exist
+2025-11-20 15:28:05.123 CST [62991] FATAL:  role "postgres" does not exist
+2025-11-20 15:28:12.618 CST [63178] FATAL:  role "postgres" does not exist
+2025-11-20 15:31:57.344 CST [60853] LOG:  checkpoint starting: time
+2025-11-20 15:32:01.705 CST [60853] LOG:  checkpoint complete: wrote 46 buffers (0.3%); 0 WAL file(s) added, 0 removed, 0 recycled; write=4.359 s, sync=0.003 s, total=4.362 s; sync files=11, longest=0.001 s, average=0.001 s; distance=269 kB, estimate=269 kB; lsn=0/155B7E0, redo lsn=0/155B7A8
+2025-11-20 15:35:57.652 CST [60852] LOG:  could not open file "postmaster.pid": No such file or directory
+2025-11-20 15:35:57.652 CST [60852] LOG:  performing immediate shutdown because data directory lock file is invalid
+2025-11-20 15:35:57.652 CST [60852] LOG:  received immediate shutdown request
+2025-11-20 15:35:57.652 CST [60852] LOG:  could not open file "postmaster.pid": No such file or directory
+2025-11-20 15:35:57.655 CST [60852] LOG:  database system is shut down

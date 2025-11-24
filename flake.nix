@@ -12,13 +12,7 @@
       mkDevShell = system:
         let
           pkgs = nixpkgs.legacyPackages.${system};
-          pythonEnv = pkgs.python314.withPackages (ps: with ps; [
-            pip
-            setuptools
-            wheel
-            pyyaml
-            pytest
-          ]);
+          pythonEnv = pkgs.python314;
         in
         pkgs.mkShell {
           packages = [
@@ -26,7 +20,8 @@
             pkgs.uv
             pkgs.git
             pkgs.nodejs_22
-            pkgs.nodePackages_latest."@vue/cli"
+            pkgs.postgresql_16
+            pkgs.zsh
           ];
 
           shellHook = ''
@@ -38,7 +33,19 @@
             export PATH="$NPM_CONFIG_PREFIX/bin:$PATH"
             echo "Python (uv-provided): $(python3 --version)"
             echo "Node: $(node --version)"
-            echo "Vue CLI: $(vue --version)"
+            export POSTGRES_DATA="$PWD/.postgresql/data"
+            mkdir -p "$POSTGRES_DATA"
+            echo "PostgreSQL data directory: $POSTGRES_DATA"
+            if [ ! -f "$POSTGRES_DATA/PG_VERSION" ]; then
+              echo " * Run: initdb -D '$POSTGRES_DATA' --auth=trust"
+            else
+              echo " * PostgreSQL cluster initialized. Use 'pg_ctl -D $POSTGRES_DATA start'"
+            fi
+
+            # Switch to zsh if we are in an interactive shell
+            if [[ $- == *i* ]]; then
+              exec zsh
+            fi
           '';
         };
     in

@@ -17,6 +17,14 @@ desktop.ini
 *.pem
 *.key
 
+# 本地数据库数据目录
+.postgresql/
+postgres-data/
+pgdata/
+*.sqlite
+*.sqlite3
+*.db
+
 # Node.js
 node_modules/
 npm-debug.log*

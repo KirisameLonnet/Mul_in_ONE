@@ -8,75 +8,173 @@ Description-Content-Type: text/markdown
 Requires-Dist: nvidia-nat>=0.6.0
 Requires-Dist: nvidia-nat-langchain>=1.3.0
 Requires-Dist: pyyaml>=6.0
+Requires-Dist: fastapi>=0.115
+Requires-Dist: uvicorn[standard]>=0.30
+Requires-Dist: sqlalchemy[asyncio]>=2.0
+Requires-Dist: asyncpg>=0.29
+Requires-Dist: alembic>=1.13
+Requires-Dist: cryptography>=43.0
+Requires-Dist: aiosqlite>=0.20
+Requires-Dist: greenlet>=3.0
 Provides-Extra: dev
 Requires-Dist: pytest>=8.0; extra == "dev"
 
-# Mul-in-One NeMo Playground
+# Mul-in-One - 多智能体对话服务
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-## 当前项目体系
-- **运行栈**：`uv`/`direnv` 负责虚拟环境，`external/NeMo-Agent-Toolkit` 以源码方式安装，CLI 通过 `WorkflowBuilder` 注册 NIM LLM 与自定义函数。
-- **核心模块**：
-  - `src/mul_in_one_nemo/config.py` 读取环境变量与 persona 配置，统一生成 `Settings`。
-   - `persona.py` + `personas/*.yaml` 描述角色语气、活跃度、常用语与 API 绑定。
-  - `scheduler.py` 控制每回合允许发言的 persona；`memory.py` 维护共享对话历史。
-  - `runtime.py` 封装 `WorkflowBuilder`，为每个 persona 注入 `mul_in_one_persona` Function。
-  - `cli.py` 负责参数解析、交互循环与调用 `runtime`。
-- **Persona 规范**：`docs/persona_spec.md` 定义字段含义、Prompt 写法与校验清单，保障 RolePlay 场景一致性。
-- **验证**：`tests/` 目前覆盖 persona loader 与调度器；后续可增加集成测试脚本。
+**一个基于 NVIDIA NeMo Agent Toolkit 构建的、支持 Web 服务和命令行的多智能体自由对话系统。**
 
-## 业务逻辑
-1. CLI 启动后加载 `Settings` 与 persona YAML，构造共享 `ConversationMemory` 与 `TurnScheduler`。
-2. `MultiAgentRuntime` 在上下文管理器中启动 `WorkflowBuilder`，注册统一的 NIM LLM，并为每个 persona 生成函数句柄。
-3. 用户输入或 `--message` 文本写入 shared memory，scheduler 根据 proactivity、冷却与上下文标签挑选发言 persona。
-4. 每个 persona 函数收到 `history` + `user_message`，通过 LangChain LLM（NIM 模型）生成回复，再写回 shared memory。
-5. CLI 输出经过格式化的 `persona_name> response`，形成多角色对话闭环。
+本项目实现多个 AI Agent 之间的自然群聊互动，并提供了一套完整的后端服务，支持数据库持久化和通过 REST/WebSocket 与前端应用集成。
 
-## 可以实现的功能
-- 多 persona 群聊：同一轮可触发多个角色，模拟“朋友圈”多线程对话。
-- Persona 模板管理：通过 YAML 自定义语气、背景、口头禅、主动性，并可为单个 persona 指定专属 `api` 配置（模型/URL/API Key/temperature）。
-- 轻量记忆与调度：共享历史 + 主动度算法在 CLI 层决定谁先说，便于快速迭代策略。
-- NeMo 原生集成：直接调用 NIM API（LLM、未来 Guardrails/Memory），方便扩展至更多 NeMo 组件。
-- 单回合广播：`--message` 支持批量生成回复，适合自动化脚本或冒烟测试。
+## ✨ 核心特性
 
-## 如何使用
-1. **准备环境**
-   ```bash
-   direnv allow
-   uv venv .venv
-   source .venv/bin/activate
-   mkdir -p external
-   git clone https://github.com/NVIDIA/NeMo-Agent-Toolkit.git external/NeMo-Agent-Toolkit
-   uv pip install -e external/NeMo-Agent-Toolkit[langchain]
-   uv pip install -e .[dev]
-   ```
-2. **配置 NIM 凭证**（例如写入 `.envrc.local`）
-   ```bash
-   export MUL_IN_ONE_NIM_MODEL="meta/llama-3.1-70b-instruct"
-   export MUL_IN_ONE_NIM_BASE_URL="https://integrate.api.nvidia.com/v1"
-   export MUL_IN_ONE_NEMO_API_KEY="<NVIDIA-API-KEY>"
-   ```
-   也可直接设置 `NVIDIA_API_KEY`。
-3. **（可选）集中管理 API 配置**
-    - 复制 `personas/api_configuration.sample.yaml`，填写真实 URL / 模型 / API Key（默认示例已指向 SiliconFlow `Qwen/Qwen3-32B`，`api_key` 留空待填写）。
-    - 通过环境变量或 CLI 传参引用：
-     ```bash
-       export MUL_IN_ONE_API_CONFIG="personas/api_configuration.yaml"
-     ```
-       或运行时追加 `--api-config personas/api_configuration.yaml`。
-    - `default_api` 描述 CLI 默认使用的模型。persona YAML 可在每个 persona 下添加 `api` 字段（字符串）来引用某个 API 名称，实现绑定。
-4. **运行 CLI**
-   ```bash
-   mul-in-one-nemo --personas personas/persona.yaml --api-config personas/api_configuration.yaml
-   ```
-   - 直接回车进入交互式轮次，输入 `exit` 结束。
-   - `--message "今天聊点什么？"`：单回合广播，立即返回所有 persona 回复。
-   - `--max-turns`：限制交互轮数（默认 10）。
+- **动态对话调度**: 智能体基于话题兴趣、主动性和上下文动态决定发言，实现流畅、自然的群聊。
+- **服务化架构**: 使用 FastAPI 构建的健壮后端，支持高并发，易于部署和扩展。
+- **数据库持久化**: 使用 SQLAlchemy 和 Alembic 管理对话会话和历史记录，支持 PostgreSQL。
+- **灵活的 Persona 系统**: 通过 YAML 文件定义智能体的性格、语气、专长，并可绑定不同的 LLM API。
+- **双重使用模式**:
+    - **Web 服务**: 作为后端服务运行，通过 API 与前端或移动端应用交互。
+    - **命令行 (CLI)**: 直接在终端中进行多智能体对话，方便快速测试和演示。
+- **用户无缝交互**: 用户可随时在对话中插入消息，智能体会自然地衔接上下文进行讨论。
+- **高级对话功能**: 支持流式输出、`@`提及、发言冷却机制，确保对话质量。
 
-## 如何测试
-```bash
-python -m pytest
+## 🏗️ 项目架构
+
+项目采用分层架构，清晰地分离了核心对话引擎、Web 服务和数据存储。
+
+```plaintext
+┌───────────────────────────┐
+│     Frontend (Browser)    │
+│ (REST API / WebSocket)    │
+└─────────────┬─────────────┘
+              │
+┌─────────────▼─────────────┐
+│   Backend Service (FastAPI) │
+├───────────────────────────┤
+│ ┌───────────────────────┐ │
+│ │    API Endpoints      │ │  (src/mul_in_one_nemo/service)
+│ │  (Sessions, Persona)  │ │
+│ └───────────┬───────────┘ │
+│             │             │
+│ ┌───────────▼───────────┐ │
+│ │  Multi-Agent Engine   │ │  (scheduler, runtime, memory)
+│ └───────────┬───────────┘ │
+│             │             │
+│ ┌───────────▼───────────┐ │
+│ │ Database Layer (ORM)  │ │  (src/mul_in_one_nemo/db)
+│ └───────────────────────┘ │
+└─────────────┬─────────────┘
+              │
+┌─────────────▼─────────────┐
+│  PostgreSQL (Database)    │
+└───────────────────────────┘
 ```
-- `tests/test_persona_loader.py`：校验 YAML 解析与默认值。
-- `tests/test_scheduler.py`：验证回合调度的排序与冷却逻辑。
-- 建议在拥有 NIM 凭证后追加集成测试，确认 CLI 能通过 `WorkflowBuilder` 调起真实模型。
+
+## 🚀 快速开始
+
+### 1. 先决条件
+
+- Python 3.11+
+- [uv](https://github.com/astral-sh/uv) (推荐的 Python 包管理器)
+- [Docker](https://www.docker.com/) (用于运行 PostgreSQL)
+
+### 2. 环境设置
+
+```bash
+# 克隆本项目
+git clone <repository-url>
+cd Mul_in_ONE
+
+# 激活 direnv (如果安装了)
+# direnv allow
+
+# 创建并激活虚拟环境
+uv venv .venv
+source .venv/bin/activate
+# Windows: .venv\Scripts\activate
+
+# 运行引导脚本 (将自动克隆 NeMo Toolkit 并安装所有依赖)
+./scripts/bootstrap_toolkit.sh
+```
+*此脚本会安装 `.` 和 `external/NeMo-Agent-Toolkit` 的所有依赖。*
+
+### 3. 数据库设置
+
+```bash
+# 在 Docker 中启动 PostgreSQL 数据库服务
+./scripts/db_start.sh
+
+# 等待数据库完全启动后，执行数据库迁移
+# 这将创建所有必要的表
+alembic upgrade head
+```
+*数据库连接信息由 `DATABASE_URL` 环境变量控制 (默认为 `postgresql+asyncpg://postgres:postgres@localhost:5432/mul_in_one`)。*
+
+### 4. 应用配置
+
+```bash
+# 从模板创建你自己的 Persona 和 API 配置文件
+cp personas/persona.yaml.example personas/persona.yaml
+cp personas/api_configuration.yaml.example personas/api_configuration.yaml
+
+# 编辑 .envrc 文件，填入你的 API 密钥
+# 或者直接导出环境变量
+export NVIDIA_API_KEY="nvapi-..." # 你的 NVIDIA API Key
+# 或其他 LLM 提供商的 Key
+# export OPENAI_API_KEY="..."
+```
+- **`personas/persona.yaml`**: 在此定义你的 AI 智能体角色。
+- **`personas/api_configuration.yaml`**: 在此配置你使用的 LLM API 服务（如 OpenAI, NVIDIA NIM, SiliconFlow 等）。
+
+## ⚡ 如何运行
+
+你可以根据需要，选择启动后端服务或独立的 CLI 应用。
+
+### 启动后端 Web 服务
+
+```bash
+# 启动 FastAPI 服务，并开启热重载
+uvicorn mul_in_one_nemo.service.main:app --reload
+```
+服务将在 `http://127.0.0.1:8000` 上运行。你可以访问 `http://127.0.0.1:8000/docs` 查看自动生成的 API 文档 (Swagger UI)。
+
+### 运行命令行应用 (CLI)
+
+```bash
+# 运行 CLI，启用流式输出以获得最佳体验
+uv run mul-in-one-nemo --stream
+
+# 你也可以发送单条消息进行测试
+uv run mul-in-one-nemo --message "大家好，我们来聊聊最近的天气吧！"
+```
+
+## 🧪 测试
+
+使用 `pytest` 运行所有单元测试和集成测试。
+
+```bash
+# 确保项目依赖已安装
+# uv pip install -e .[dev]
+
+# 运行测试
+pytest
+```
+
+## 📖 API 与文档
+
+- **后端 API 文档**: 启动服务后，访问 [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)。
+- **前端 API 规范**: `docs/frontend_api_spec.md` 详细定义了前端可以使用的 REST/WebSocket 接口。
+- **架构设计**: `docs/architecture.md` 提供了更深入的系统设计细节。
+- **数据库迁移**: `docs/database_migration.md` 描述了数据库迁移和数据导入的步骤。
+
+## 🤝 贡献
+
+我们欢迎任何形式的贡献！请随时提交 Issue 或 Pull Request。
+
+## 🙏 致谢
+
+- [NVIDIA NeMo Agent Toolkit](https://github.com/NVIDIA/NeMo-Agent-Toolkit)
+- LangChain
+- FastAPI
+- SiliconFlow

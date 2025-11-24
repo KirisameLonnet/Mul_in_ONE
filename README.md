@@ -13,8 +13,8 @@
 - **数据库持久化**: 使用 SQLAlchemy 和 Alembic 管理对话会话和历史记录，支持 PostgreSQL。
 - **灵活的 Persona 系统**: 通过 YAML 文件定义智能体的性格、语气、专长，并可绑定不同的 LLM API。
 - **双重使用模式**:
-    - **Web 服务**: 作为后端服务运行，通过 API 与前端或移动端应用交互。
-    - **命令行 (CLI)**: 直接在终端中进行多智能体对话，方便快速测试和演示。
+  - **Web 服务**: 作为后端服务运行，通过 API 与前端或移动端应用交互。
+  - **命令行 (CLI)**: 直接在终端中进行多智能体对话，方便快速测试和演示。
 - **用户无缝交互**: 用户可随时在对话中插入消息，智能体会自然地衔接上下文进行讨论。
 - **高级对话功能**: 支持流式输出、`@`提及、发言冷却机制，确保对话质量。
 
@@ -76,6 +76,7 @@ source .venv/bin/activate
 # 运行引导脚本 (将自动克隆 NeMo Toolkit 并安装所有依赖)
 ./scripts/bootstrap_toolkit.sh
 ```
+
 *此脚本会安装 `.` 和 `external/NeMo-Agent-Toolkit` 的所有依赖。*
 
 ### 3. 数据库设置
@@ -88,6 +89,7 @@ source .venv/bin/activate
 # 这将创建所有必要的表
 alembic upgrade head
 ```
+
 *数据库连接信息由 `DATABASE_URL` 环境变量控制 (默认为 `postgresql+asyncpg://postgres:postgres@localhost:5432/mul_in_one`)。*
 
 ### 4. 应用配置
@@ -103,6 +105,7 @@ export NVIDIA_API_KEY="nvapi-..." # 你的 NVIDIA API Key
 # 或其他 LLM 提供商的 Key
 # export OPENAI_API_KEY="..."
 ```
+
 - **`personas/persona.yaml`**: 在此定义你的 AI 智能体角色。
 - **`personas/api_configuration.yaml`**: 在此配置你使用的 LLM API 服务（如 OpenAI, NVIDIA NIM, SiliconFlow 等）。
 
@@ -116,6 +119,7 @@ export NVIDIA_API_KEY="nvapi-..." # 你的 NVIDIA API Key
 # 启动 FastAPI 服务，并开启热重载
 uvicorn mul_in_one_nemo.service.main:app --reload
 ```
+
 服务将在 `http://127.0.0.1:8000` 上运行。你可以访问 `http://127.0.0.1:8000/docs` 查看自动生成的 API 文档 (Swagger UI)。
 
 ### 运行命令行应用 (CLI)
@@ -150,10 +154,3 @@ pytest
 ## 🤝 贡献
 
 我们欢迎任何形式的贡献！请随时提交 Issue 或 Pull Request。
-
-## 🙏 致谢
-
-- [NVIDIA NeMo Agent Toolkit](https://github.com/NVIDIA/NeMo-Agent-Toolkit)
-- LangChain
-- FastAPI
-- SiliconFlow

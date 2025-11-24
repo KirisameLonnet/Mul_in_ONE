@@ -93,7 +93,7 @@
 <script setup lang="ts">
 import { ref, onMounted, reactive } from 'vue'
 import { useQuasar } from 'quasar'
-import { getAPIProfiles, createAPIProfile, updateAPIProfile, deleteAPIProfile, type APIProfile, authState } from '../api'
+import { getAPIProfiles, createAPIProfile, updateAPIProfile, deleteAPIProfile, type APIProfile, type UpdateAPIProfilePayload, authState } from '../api'
 
 const $q = useQuasar()
 const profiles = ref<APIProfile[]>([])
@@ -189,7 +189,7 @@ const handleUpdate = async () => {
   if (!selectedProfile.value) return
   updating.value = true
   try {
-    const payload: Record<string, unknown> = {
+    const payload: UpdateAPIProfilePayload = {
       tenant_id: authState.tenantId,
       name: editProfile.name,
       base_url: editProfile.base_url,

@@ -200,4 +200,3 @@ def test_update_and_delete_persona(persona_test_client: TestClient) -> None:
         f"/api/personas/{persona['id']}", params={"tenant_id": "tenant-a"}
     )
     assert get_resp.status_code == 404
-*** End File

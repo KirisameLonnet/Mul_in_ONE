@@ -7,6 +7,22 @@ from pathlib import Path
 from typing import List
 import yaml
 
+
+@dataclass(slots=True)
+class PersonaBackground:
+    """Background knowledge configuration for a persona.
+
+    This defines how RAG (Retrieval Augmented Generation) should be used
+    to enhance persona responses with relevant background information.
+    """
+
+    content: str | None = None  # Inline background text
+    file: str | None = None  # Path to background file
+    source: str = "background"  # Source identifier for retrieval
+    rag_enabled: bool = True  # Whether to use RAG for this persona
+    rag_top_k: int = 3  # Number of chunks to retrieve
+
+
 @dataclass(slots=True)
 class Persona:
     name: str
@@ -17,6 +33,7 @@ class Persona:
     catchphrases: List[str] | None = None
     api: "PersonaAPIConfig" | None = None
     api_binding: str | None = None
+    background: PersonaBackground | None = None  # RAG background knowledge
 
     def system_prompt(self) -> str:
         tagline = f"语气倾向：{self.tone}" if self.tone else ""
@@ -59,6 +76,23 @@ def load_personas(path: Path) -> PersonaSettings:
 
         binding_clean = binding_name.strip() if isinstance(binding_name, str) else None
 
+        # Parse background configuration for RAG
+        background_config = None
+        background_field = raw.get("background")
+        if background_field:
+            if isinstance(background_field, str):
+                # Simple string format - treat as inline content
+                background_config = PersonaBackground(content=background_field)
+            elif isinstance(background_field, dict):
+                # Full configuration format
+                background_config = PersonaBackground(
+                    content=background_field.get("content"),
+                    file=background_field.get("file"),
+                    source=background_field.get("source", "background"),
+                    rag_enabled=background_field.get("rag_enabled", True),
+                    rag_top_k=int(background_field.get("rag_top_k", 3)),
+                )
+
         personas.append(
             Persona(
                 name=raw["name"],
@@ -69,6 +103,7 @@ def load_personas(path: Path) -> PersonaSettings:
                 catchphrases=raw.get("catchphrases"),
                 api=api_config,
                 api_binding=binding_clean,
+                background=background_config,
             )
         )
     settings = data.get("settings", {})

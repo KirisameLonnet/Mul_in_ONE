@@ -34,112 +34,101 @@ Requires-Dist: pytest>=8.0; extra == "dev"
 - **数据库持久化**: 使用 SQLAlchemy 和 Alembic 管理对话会话和历史记录，支持 PostgreSQL。
 - **灵活的 Persona 系统**: 通过 YAML 文件定义智能体的性格、语气、专长，并可绑定不同的 LLM API。
 - **双重使用模式**:
-    - **Web 服务**: 作为后端服务运行，通过 API 与前端或移动端应用交互。
-    - **命令行 (CLI)**: 直接在终端中进行多智能体对话，方便快速测试和演示。
+  - **Web 服务**: 作为后端服务运行，通过 API 与前端或移动端应用交互。
+  - **命令行 (CLI)**: 直接在终端中进行多智能体对话，方便快速测试和演示。
 - **用户无缝交互**: 用户可随时在对话中插入消息，智能体会自然地衔接上下文进行讨论。
 - **高级对话功能**: 支持流式输出、`@`提及、发言冷却机制，确保对话质量。
 
-## 🏗️ 项目架构
+## 🛠️ 技术栈
 
-项目采用分层架构，清晰地分离了核心对话引擎、Web 服务和数据存储。
+- **后端**: Python, FastAPI, SQLAlchemy
+- **前端**: Vue.js, Vite, DevUI
+- **对话引擎**: NVIDIA NeMo Agent Toolkit
+- **数据库**: PostgreSQL, Alembic
+- **包管理**: uv, npm
 
-```plaintext
-┌───────────────────────────┐
-│     Frontend (Browser)    │
-│ (REST API / WebSocket)    │
-└─────────────┬─────────────┘
-              │
-┌─────────────▼─────────────┐
-│   Backend Service (FastAPI) │
-├───────────────────────────┤
-│ ┌───────────────────────┐ │
-│ │    API Endpoints      │ │  (src/mul_in_one_nemo/service)
-│ │  (Sessions, Persona)  │ │
-│ └───────────┬───────────┘ │
-│             │             │
-│ ┌───────────▼───────────┐ │
-│ │  Multi-Agent Engine   │ │  (scheduler, runtime, memory)
-│ └───────────┬───────────┘ │
-│             │             │
-│ ┌───────────▼───────────┐ │
-│ │ Database Layer (ORM)  │ │  (src/mul_in_one_nemo/db)
-│ └───────────────────────┘ │
-└─────────────┬─────────────┘
-              │
-┌─────────────▼─────────────┐
-│  PostgreSQL (Database)    │
-└───────────────────────────┘
+## 🏗️ 项目结构
+
+```
+.
+├── alembic/              # 数据库迁移脚本
+├── docs/                 # 项目文档
+├── external/             # 外部依赖 (NeMo Agent Toolkit)
+├── personas/             # AI 智能体配置文件
+├── scripts/              # 辅助脚本 (数据库启动等)
+├── src/
+│   ├── mio_frontend/     # 前端 Vue.js 项目
+│   └── mul_in_one_nemo/  # 后端 Python 项目
+│       ├── db/           # 数据库模型和操作
+│       ├── service/      # FastAPI 服务和 API 端点
+│       ├── cli.py        # 命令行应用入口
+│       └── ...           # 对话引擎核心逻辑
+└── tests/                # Pytest 测试
 ```
 
-## 🚀 快速开始
+## 🚀 本地开发设置
 
 ### 1. 先决条件
 
 - Python 3.11+
 - [uv](https://github.com/astral-sh/uv) (推荐的 Python 包管理器)
-- [Docker](https://www.docker.com/) (用于运行 PostgreSQL)
+- [Node.js](https://nodejs.org/) 和 npm
+- PostgreSQL
 
-### 2. 环境设置
+### 2. 环境初始化
 
 ```bash
 # 克隆本项目
 git clone <repository-url>
 cd Mul_in_ONE
 
-# 激活 direnv (如果安装了)
-# direnv allow
-
-# 创建并激活虚拟环境
+# 创建并激活 Python 虚拟环境
 uv venv .venv
 source .venv/bin/activate
 # Windows: .venv\Scripts\activate
 
-# 运行引导脚本 (将自动克隆 NeMo Toolkit 并安装所有依赖)
+# 运行引导脚本 (将自动克隆 NeMo Toolkit 并安装所有 Python 依赖)
 ./scripts/bootstrap_toolkit.sh
 ```
-*此脚本会安装 `.` 和 `external/NeMo-Agent-Toolkit` 的所有依赖。*
-
-### 3. 数据库设置
-
-```bash
-# 在 Docker 中启动 PostgreSQL 数据库服务
-./scripts/db_start.sh
-
-# 等待数据库完全启动后，执行数据库迁移
-# 这将创建所有必要的表
-alembic upgrade head
-```
-*数据库连接信息由 `DATABASE_URL` 环境变量控制 (默认为 `postgresql+asyncpg://postgres:postgres@localhost:5432/mul_in_one`)。*
-
-### 4. 应用配置
-
-```bash
-# 从模板创建你自己的 Persona 和 API 配置文件
-cp personas/persona.yaml.example personas/persona.yaml
-cp personas/api_configuration.yaml.example personas/api_configuration.yaml
-
-# 编辑 .envrc 文件，填入你的 API 密钥
-# 或者直接导出环境变量
-export NVIDIA_API_KEY="nvapi-..." # 你的 NVIDIA API Key
-# 或其他 LLM 提供商的 Key
-# export OPENAI_API_KEY="..."
-```
-- **`personas/persona.yaml`**: 在此定义你的 AI 智能体角色。
-- **`personas/api_configuration.yaml`**: 在此配置你使用的 LLM API 服务（如 OpenAI, NVIDIA NIM, SiliconFlow 等）。
 
 ## ⚡ 如何运行
 
-你可以根据需要，选择启动后端服务或独立的 CLI 应用。
+### 1. 启动数据库
 
-### 启动后端 Web 服务
+```bash
+# 启动 PostgreSQL 数据库服务
+./scripts/db_start.sh
+```
+
+*数据库连接信息由 `DATABASE_URL` 环境变量控制 (默认为 `postgresql+asyncpg://postgres:postgres@localhost:5432/mul_in_one`)。*
+
+### 2. 启动后端服务
 
 ```bash
 # 启动 FastAPI 服务，并开启热重载
 uvicorn mul_in_one_nemo.service.main:app --reload
 ```
+
 服务将在 `http://127.0.0.1:8000` 上运行。你可以访问 `http://127.0.0.1:8000/docs` 查看自动生成的 API 文档 (Swagger UI)。
 
+### 3. 启动前端应用
+
+```bash
+# 进入前端项目目录
+cd src/mio_frontend/mio-frontend
+
+# 安装 npm 依赖
+npm install
+
+# 启动 Vite 开发服务器
+npm run dev
+```
+
+前端应用将在 `http://localhost:5173` (或 Vite 指定的其他端口) 上运行。
+
 ### 运行命令行应用 (CLI)
+
+如果你想在没有 Web 界面的情况下运行，可以使用命令行工具。
 
 ```bash
 # 运行 CLI，启用流式输出以获得最佳体验
@@ -154,14 +143,14 @@ uv run mul-in-one-nemo --message "大家好，我们来聊聊最近的天气吧�
 使用 `pytest` 运行所有单元测试和集成测试。
 
 ```bash
-# 确保项目依赖已安装
+# 确保项目依赖已安装 (bootstrap_toolkit.sh 已包含 dev 依赖)
 # uv pip install -e .[dev]
 
 # 运行测试
 pytest
 ```
 
-## 📖 API 与文档
+## 📖 文档
 
 - **后端 API 文档**: 启动服务后，访问 [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)。
 - **前端 API 规范**: `docs/frontend_api_spec.md` 详细定义了前端可以使用的 REST/WebSocket 接口。
@@ -171,10 +160,3 @@ pytest
 ## 🤝 贡献
 
 我们欢迎任何形式的贡献！请随时提交 Issue 或 Pull Request。
-
-## 🙏 致谢
-
-- [NVIDIA NeMo Agent Toolkit](https://github.com/NVIDIA/NeMo-Agent-Toolkit)
-- LangChain
-- FastAPI
-- SiliconFlow

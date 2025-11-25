@@ -26,6 +26,10 @@ class PersonaDialogueOutput(BaseModel):
     response: str = Field(description="Generated response from persona")
 
 
+# Number of recent history messages to include in RAG query for better context retrieval
+RAG_QUERY_HISTORY_LOOKBACK = 3
+
+
 class PersonaDialogueFunctionConfig(FunctionBaseConfig, name="mul_in_one_persona"):
     llm_name: LLMRef = Field(description="LLM provider registered in the builder")
     persona_name: str = Field(default="Persona")
@@ -55,7 +59,7 @@ async def persona_dialogue_function(config: PersonaDialogueFunctionConfig, build
                 if user_message:
                     query_parts.append(user_message)
                 # Add recent history for better context retrieval
-                for msg in history[-3:]:
+                for msg in history[-RAG_QUERY_HISTORY_LOOKBACK:]:
                     query_parts.append(msg.get("content", ""))
                 query = " ".join(query_parts)
 

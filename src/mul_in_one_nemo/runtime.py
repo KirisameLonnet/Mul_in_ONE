@@ -64,7 +64,12 @@ class MultiAgentRuntime:
         return self
 
     def _load_persona_background(self, rag_service, persona: Persona) -> None:
-        """Load persona background knowledge into RAG service."""
+        """Load persona background knowledge into RAG service.
+
+        Args:
+            rag_service: The RAG service to load knowledge into
+            persona: The persona whose background should be loaded
+        """
         if not persona.background:
             return
 
@@ -82,13 +87,26 @@ class MultiAgentRuntime:
         # Load from file if specified
         if background.file:
             file_path = Path(background.file)
-            if file_path.exists():
+            if not file_path.exists():
+                import logging
+                logging.warning(
+                    f"Background file not found for persona '{persona.name}': {background.file}. "
+                    "Skipping file-based background loading."
+                )
+                return
+            try:
                 content = file_path.read_text(encoding="utf-8")
                 rag_service.add_persona_background(
                     persona.handle,
                     content,
                     source=f"file:{background.file}",
                     metadata={"persona_name": persona.name, "file": background.file},
+                )
+            except (IOError, OSError) as e:
+                import logging
+                logging.error(
+                    f"Failed to read background file for persona '{persona.name}': "
+                    f"{background.file}. Error: {e}"
                 )
 
     async def __aexit__(self, exc_type, exc_val, exc_tb) -> None:

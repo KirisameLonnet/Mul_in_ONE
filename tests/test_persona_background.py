@@ -19,6 +19,13 @@ from mul_in_one_nemo.persona import (
 )
 
 
+@pytest.fixture
+def temp_yaml_dir():
+    """Create a temporary directory for YAML test files."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        yield Path(tmpdir)
+
+
 class TestPersonaBackground:
     """Test the PersonaBackground dataclass."""
 
@@ -75,7 +82,7 @@ class TestPersonaWithBackground:
 class TestLoadPersonasWithBackground:
     """Test loading personas with background configuration from YAML."""
 
-    def test_load_persona_with_string_background(self):
+    def test_load_persona_with_string_background(self, temp_yaml_dir):
         """Test loading persona with simple string background."""
         yaml_content = """
 personas:
@@ -89,24 +96,19 @@ settings:
   max_agents_per_turn: 2
   memory_window: 8
 """
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False, encoding="utf-8") as f:
-            f.write(yaml_content)
-            f.flush()
-            path = Path(f.name)
+        path = temp_yaml_dir / "test_personas.yaml"
+        path.write_text(yaml_content, encoding="utf-8")
 
-        try:
-            settings = load_personas(path)
-            assert len(settings.personas) == 1
+        settings = load_personas(path)
+        assert len(settings.personas) == 1
 
-            persona = settings.personas[0]
-            assert persona.name == "历史学家"
-            assert persona.background is not None
-            assert "专攻中国古代史" in persona.background.content
-            assert persona.background.rag_enabled is True
-        finally:
-            path.unlink()
+        persona = settings.personas[0]
+        assert persona.name == "历史学家"
+        assert persona.background is not None
+        assert "专攻中国古代史" in persona.background.content
+        assert persona.background.rag_enabled is True
 
-    def test_load_persona_with_dict_background(self):
+    def test_load_persona_with_dict_background(self, temp_yaml_dir):
         """Test loading persona with full dict background configuration."""
         yaml_content = """
 personas:
@@ -124,24 +126,19 @@ settings:
   max_agents_per_turn: 2
   memory_window: 8
 """
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False, encoding="utf-8") as f:
-            f.write(yaml_content)
-            f.flush()
-            path = Path(f.name)
+        path = temp_yaml_dir / "test_personas.yaml"
+        path.write_text(yaml_content, encoding="utf-8")
 
-        try:
-            settings = load_personas(path)
-            assert len(settings.personas) == 1
+        settings = load_personas(path)
+        assert len(settings.personas) == 1
 
-            persona = settings.personas[0]
-            assert persona.background is not None
-            assert persona.background.source == "life_story"
-            assert persona.background.rag_enabled is True
-            assert persona.background.rag_top_k == 5
-        finally:
-            path.unlink()
+        persona = settings.personas[0]
+        assert persona.background is not None
+        assert persona.background.source == "life_story"
+        assert persona.background.rag_enabled is True
+        assert persona.background.rag_top_k == 5
 
-    def test_load_persona_with_file_background(self):
+    def test_load_persona_with_file_background(self, temp_yaml_dir):
         """Test loading persona with file-based background."""
         yaml_content = """
 personas:
@@ -156,22 +153,17 @@ settings:
   max_agents_per_turn: 2
   memory_window: 8
 """
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False, encoding="utf-8") as f:
-            f.write(yaml_content)
-            f.flush()
-            path = Path(f.name)
+        path = temp_yaml_dir / "test_personas.yaml"
+        path.write_text(yaml_content, encoding="utf-8")
 
-        try:
-            settings = load_personas(path)
-            persona = settings.personas[0]
+        settings = load_personas(path)
+        persona = settings.personas[0]
 
-            assert persona.background is not None
-            assert persona.background.file == "/path/to/background.txt"
-            assert persona.background.source == "biography"
-        finally:
-            path.unlink()
+        assert persona.background is not None
+        assert persona.background.file == "/path/to/background.txt"
+        assert persona.background.source == "biography"
 
-    def test_load_persona_with_rag_disabled(self):
+    def test_load_persona_with_rag_disabled(self, temp_yaml_dir):
         """Test loading persona with RAG explicitly disabled."""
         yaml_content = """
 personas:
@@ -185,21 +177,16 @@ settings:
   max_agents_per_turn: 2
   memory_window: 8
 """
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False, encoding="utf-8") as f:
-            f.write(yaml_content)
-            f.flush()
-            path = Path(f.name)
+        path = temp_yaml_dir / "test_personas.yaml"
+        path.write_text(yaml_content, encoding="utf-8")
 
-        try:
-            settings = load_personas(path)
-            persona = settings.personas[0]
+        settings = load_personas(path)
+        persona = settings.personas[0]
 
-            assert persona.background is not None
-            assert persona.background.rag_enabled is False
-        finally:
-            path.unlink()
+        assert persona.background is not None
+        assert persona.background.rag_enabled is False
 
-    def test_load_multiple_personas_mixed_backgrounds(self):
+    def test_load_multiple_personas_mixed_backgrounds(self, temp_yaml_dir):
         """Test loading multiple personas with different background configs."""
         yaml_content = """
 personas:
@@ -223,24 +210,19 @@ settings:
   max_agents_per_turn: 3
   memory_window: 10
 """
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False, encoding="utf-8") as f:
-            f.write(yaml_content)
-            f.flush()
-            path = Path(f.name)
+        path = temp_yaml_dir / "test_personas.yaml"
+        path.write_text(yaml_content, encoding="utf-8")
 
-        try:
-            settings = load_personas(path)
-            assert len(settings.personas) == 3
+        settings = load_personas(path)
+        assert len(settings.personas) == 3
 
-            # Persona A - no background
-            assert settings.personas[0].background is None
+        # Persona A - no background
+        assert settings.personas[0].background is None
 
-            # Persona B - string background
-            assert settings.personas[1].background is not None
-            assert settings.personas[1].background.content == "简单的背景文本"
+        # Persona B - string background
+        assert settings.personas[1].background is not None
+        assert settings.personas[1].background.content == "简单的背景文本"
 
-            # Persona C - dict background
-            assert settings.personas[2].background is not None
-            assert settings.personas[2].background.rag_top_k == 10
-        finally:
-            path.unlink()
+        # Persona C - dict background
+        assert settings.personas[2].background is not None
+        assert settings.personas[2].background.rag_top_k == 10

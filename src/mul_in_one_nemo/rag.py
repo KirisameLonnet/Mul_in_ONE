@@ -24,6 +24,9 @@ from langchain_core.documents import Document
 from langchain_core.embeddings import Embeddings
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
+# Constants
+CHUNK_ID_LENGTH = 16  # Length of truncated SHA256 hash for chunk IDs
+
 
 @dataclass
 class KnowledgeChunk:
@@ -42,7 +45,7 @@ class KnowledgeChunk:
         metadata: Optional[Dict[str, Any]] = None,
     ) -> "KnowledgeChunk":
         """Create a knowledge chunk from text content."""
-        chunk_id = hashlib.sha256(f"{source}:{content}".encode()).hexdigest()[:16]
+        chunk_id = hashlib.sha256(f"{source}:{content}".encode()).hexdigest()[:CHUNK_ID_LENGTH]
         return cls(
             content=content,
             source=source,
@@ -382,11 +385,16 @@ def get_rag_service() -> RAGService:
     return _rag_service
 
 
-def set_rag_service(service: RAGService) -> None:
+def set_rag_service(service: Optional[RAGService]) -> None:
     """Set the global RAG service instance.
 
+    This can be used to inject a custom RAG service with different
+    embeddings or vector store implementations. Pass None to reset
+    the global service (a new default service will be created on
+    next get_rag_service() call).
+
     Args:
-        service: The RAG service to use globally
+        service: The RAG service to use globally, or None to reset
     """
     global _rag_service
     _rag_service = service

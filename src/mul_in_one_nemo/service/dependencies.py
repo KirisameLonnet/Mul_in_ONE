@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import os
 from functools import lru_cache
+from pathlib import Path
 
 from mul_in_one_nemo.config import Settings
+from mul_in_one_nemo.service.rag_service import RAGService
 from mul_in_one_nemo.service.repositories import (
     InMemorySessionRepository,
     PersonaDataRepository,
@@ -59,3 +61,9 @@ def get_persona_repository() -> PersonaDataRepository:
         default_max_agents_per_turn=settings.max_agents_per_turn,
         default_temperature=settings.temperature,
     )
+
+
+@lru_cache
+def get_rag_service() -> RAGService:
+    """Provide a singleton instance of the RAGService."""
+    return RAGService()

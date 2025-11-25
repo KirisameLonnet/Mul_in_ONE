@@ -6,6 +6,7 @@ import importlib
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+from pydantic import AnyHttpUrl # Import AnyHttpUrl for the mock
 
 SRC_DIR = Path(__file__).resolve().parents[1] / "src"
 if str(SRC_DIR) not in sys.path:
@@ -20,6 +21,17 @@ create_app = getattr(_service_app, "create_app")
 get_persona_repository = getattr(_dependencies_module, "get_persona_repository")
 Base = getattr(_models_module, "Base")
 SQLAlchemyPersonaRepository = getattr(_repositories_module, "SQLAlchemyPersonaRepository")
+
+
+# Mocks for RAGService
+class MockRAGService:
+    async def ingest_url(self, url: AnyHttpUrl, persona_id: int) -> dict:
+        if "invalid.url" in str(url):
+            raise RuntimeError("Failed to scrape invalid.url")
+        return {"status": "success", "documents_added": 10, "collection_name": f"persona_{persona_id}_rag"}
+
+def get_mock_rag_service():
+    return MockRAGService()
 
 
 @pytest.fixture
@@ -42,6 +54,7 @@ def persona_test_client():
 
     app = create_app()
     app.dependency_overrides[get_persona_repository] = lambda: repository
+    app.dependency_overrides[_dependencies_module.get_rag_service] = get_mock_rag_service
     client = TestClient(app)
     try:
         yield client
@@ -200,3 +213,44 @@ def test_update_and_delete_persona(persona_test_client: TestClient) -> None:
         f"/api/personas/{persona['id']}", params={"tenant_id": "tenant-a"}
     )
     assert get_resp.status_code == 404
+
+
+def test_ingest_persona_data(persona_test_client: TestClient) -> None:
+    # First, create a persona to get a valid persona_id
+    profile_payload = {
+        "tenant_id": "tenant-a",
+        "name": "TestProfile",
+        "base_url": "https://example.com/v1",
+        "model": "model-x",
+        "api_key": "sk-test-9999",
+        "temperature": 0.6,
+    }
+    profile = persona_test_client.post("/api/api-profiles", json=profile_payload).json()
+
+    persona_payload = {
+        "tenant_id": "tenant-a",
+        "name": "TestPersona",
+        "prompt": "You are a test persona",
+        "api_profile_id": profile["id"],
+    }
+    persona = persona_test_client.post("/api/personas", json=persona_payload).json()
+    persona_id = persona["id"]
+
+    # Test successful ingestion
+    ingest_payload = {"url": "https://example.com/document"}
+    response = persona_test_client.post(
+        f"/api/personas/{persona_id}/ingest", json=ingest_payload
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["status"] == "success"
+    assert data["documents_added"] == 10
+    assert data["collection_name"] == f"persona_{persona_id}_rag"
+
+    # Test ingestion failure (mocked)
+    ingest_payload_fail = {"url": "https://invalid.url"}
+    response_fail = persona_test_client.post(
+        f"/api/personas/{persona_id}/ingest", json=ingest_payload_fail
+    )
+    assert response_fail.status_code == 500
+    assert "Failed to scrape invalid.url" in response_fail.json()["detail"]

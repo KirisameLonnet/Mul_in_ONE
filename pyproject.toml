@@ -16,6 +16,9 @@ dependencies = [
     "cryptography>=43.0",
     "aiosqlite>=0.20",
     "greenlet>=3.0",
+    "langchain-community~=0.0",
+    "lxml>=5.2.2",
+    "langchain-openai>=0.1.0",
 ]
 readme = "README.md"
 

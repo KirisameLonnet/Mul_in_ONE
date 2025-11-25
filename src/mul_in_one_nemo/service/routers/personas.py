@@ -7,8 +7,9 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from pydantic import AnyHttpUrl, BaseModel, Field
 
-from mul_in_one_nemo.service.dependencies import get_persona_repository
+from mul_in_one_nemo.service.dependencies import get_persona_repository, get_rag_service
 from mul_in_one_nemo.service.models import APIProfileRecord, PersonaRecord
+from mul_in_one_nemo.service.rag_service import RAGService
 from mul_in_one_nemo.service.repositories import PersonaDataRepository
 
 router = APIRouter(tags=["personas"])
@@ -116,6 +117,15 @@ class PersonaUpdate(BaseModel):
     max_agents_per_turn: int | None = Field(default=None, ge=1, le=8)
     api_profile_id: int | None = Field(default=None, ge=1)
     is_default: bool | None = None
+
+
+class PersonaIngestRequest(BaseModel):
+    url: AnyHttpUrl = Field(..., description="URL to ingest content from for RAG")
+
+class PersonaIngestResponse(BaseModel):
+    status: str = Field(..., description="Status of the ingestion process")
+    documents_added: int | None = Field(default=None, description="Number of document chunks added")
+    collection_name: str | None = Field(default=None, description="Milvus collection name used")
 
 
 @router.get("/api-profiles", response_model=list[APIProfileResponse])
@@ -257,3 +267,21 @@ async def delete_persona(
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.post("/personas/{persona_id}/ingest", response_model=PersonaIngestResponse, status_code=status.HTTP_200_OK)
+async def ingest_persona_data(
+    persona_id: int,
+    payload: PersonaIngestRequest,
+    rag_service: RAGService = Depends(get_rag_service),
+) -> PersonaIngestResponse:
+    try:
+        result = await rag_service.ingest_url(payload.url, persona_id)
+        return PersonaIngestResponse(
+            status=result["status"],
+            documents_added=result["documents_added"],
+            collection_name=result["collection_name"],
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc)) from exc
+

@@ -12,6 +12,8 @@ from nat.cli.register_workflow import register_function
 from nat.data_models.component_ref import LLMRef
 from nat.data_models.function import FunctionBaseConfig
 
+from .rag import get_rag_service
+
 
 class PersonaDialogueInput(BaseModel):
     """Input schema for persona dialogue function."""
@@ -27,9 +29,12 @@ class PersonaDialogueOutput(BaseModel):
 class PersonaDialogueFunctionConfig(FunctionBaseConfig, name="mul_in_one_persona"):
     llm_name: LLMRef = Field(description="LLM provider registered in the builder")
     persona_name: str = Field(default="Persona")
+    persona_handle: str = Field(default="persona")  # Handle for RAG lookup
     persona_prompt: str = Field(default="You are an AI persona.")
     instructions: Optional[str] = Field(default=None)
     memory_window: int = Field(default=8)
+    rag_enabled: bool = Field(default=False)  # Whether to use RAG for this persona
+    rag_top_k: int = Field(default=3)  # Number of RAG chunks to retrieve
 
 
 @register_function(config_type=PersonaDialogueFunctionConfig, framework_wrappers=[LLMFrameworkEnum.LANGCHAIN])
@@ -40,8 +45,39 @@ async def persona_dialogue_function(config: PersonaDialogueFunctionConfig, build
         history = input_data.history
         user_message = input_data.user_message
 
-        system_prompt = f"""你是{config.persona_name}。{config.persona_prompt}
+        # Build RAG context if enabled
+        rag_context = ""
+        if config.rag_enabled:
+            rag_service = get_rag_service()
+            if rag_service.has_knowledge(config.persona_handle):
+                # Build query from recent conversation context
+                query_parts = []
+                if user_message:
+                    query_parts.append(user_message)
+                # Add recent history for better context retrieval
+                for msg in history[-3:]:
+                    query_parts.append(msg.get("content", ""))
+                query = " ".join(query_parts)
 
+                if query.strip():
+                    rag_context = rag_service.retrieve_context(
+                        config.persona_handle,
+                        query,
+                        k=config.rag_top_k,
+                    )
+
+        # Build system prompt with optional RAG context
+        rag_section = ""
+        if rag_context:
+            rag_section = f"""
+【你的背景记忆/经历】
+以下是与当前对话相关的你的背景知识和经历，请在回复时自然地运用这些信息：
+{rag_context}
+---
+"""
+
+        system_prompt = f"""你是{config.persona_name}。{config.persona_prompt}
+{rag_section}
 你正在参与一个多人自由对话。请注意：
 
 【对话规则】
@@ -72,6 +108,7 @@ async def persona_dialogue_function(config: PersonaDialogueFunctionConfig, build
 - 自然、真实，像真人在聊天
 - 可以简短，不需要每次都长篇大论
 - 可以表达情绪和态度
+- 如果有相关的背景经历，可以自然地提及
 
 记住：这是群聊，要像真人一样自然互动！"""
 

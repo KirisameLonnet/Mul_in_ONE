@@ -4,12 +4,32 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy import (
+    Boolean,
+    Column,
+    DateTime,
+    Float,
+    ForeignKey,
+    Integer,
+    String,
+    Table,
+    Text,
+    UniqueConstraint,
+)
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
 class Base(DeclarativeBase):
     pass
+
+
+# Association table for the many-to-many relationship between sessions and personas
+session_participants_table = Table(
+    "session_participants",
+    Base.metadata,
+    Column("session_id", String, ForeignKey("sessions.id", ondelete="CASCADE"), primary_key=True),
+    Column("persona_id", Integer, ForeignKey("personas.id", ondelete="CASCADE"), primary_key=True),
+)
 
 
 class Tenant(Base):
@@ -67,6 +87,10 @@ class Persona(Base):
     api_profile_id: Mapped[int | None] = mapped_column(ForeignKey("api_profiles.id"))
     is_default: Mapped[bool] = mapped_column(Boolean, default=False)
 
+    sessions: Mapped[list["Session"]] = relationship(
+        "Session", secondary=session_participants_table, back_populates="participants"
+    )
+
 
 class Session(Base):
     __tablename__ = "sessions"
@@ -80,7 +104,12 @@ class Session(Base):
 
     tenant: Mapped["Tenant"] = relationship("Tenant", back_populates="sessions")
     user: Mapped["User"] = relationship("User", back_populates="sessions")
-    messages: Mapped[list["SessionMessage"]] = relationship("SessionMessage", back_populates="session", cascade="all, delete-orphan")
+    messages: Mapped[list["SessionMessage"]] = relationship(
+        "SessionMessage", back_populates="session", cascade="all, delete-orphan"
+    )
+    participants: Mapped[list["Persona"]] = relationship(
+        "Persona", secondary=session_participants_table, back_populates="sessions"
+    )
 
 
 class SessionMessage(Base):

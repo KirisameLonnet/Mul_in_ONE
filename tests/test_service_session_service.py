@@ -45,8 +45,11 @@ def test_create_and_stream_session():
 
         collected: list[str] = []
         stream = await service.stream_responses(session_id)
-        async for chunk in stream:
-            collected.append(chunk)
+        async for event in stream:
+            # 只收集 agent.end 事件中的最终内容
+            if event.event == "agent.end" and "content" in event.data:
+                content = event.data["content"]
+                collected.append(content)
 
             if len(collected) == 2:
                 break

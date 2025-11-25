@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Optional
+from typing import List, Optional
 
 
 @dataclass(frozen=True)
@@ -21,6 +21,7 @@ class SessionRecord:
     user_id: str
     created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     user_persona: Optional[str] = None
+    participants: List[PersonaRecord] = field(default_factory=list)
 
 
 @dataclass

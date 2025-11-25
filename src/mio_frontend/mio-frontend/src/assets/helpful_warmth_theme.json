@@ -1,0 +1,28 @@
+{
+  "id": "tech-ai-warm",
+  "name": "Helpful Warmth",
+  "description": "Inspired by Claude. Warm bisque tones, sophisticated serifs, human.",
+  "colors": {
+    "success": "#4d8b55",
+    "warning": "#d49e2a",
+    "error": "#d15648",
+    "info": "#4a8bb3",
+    "primary": "#d97757",
+    "secondary": "#6b6b6b",
+    "accent": "#da7756",
+    "background": "#fcf7f1",
+    "surface": "#ffffff",
+    "text": "#383838",
+    "muted": "#9e9e9e"
+  },
+  "typography": {
+    "headingFont": "\"Merriweather\", serif",
+    "bodyFont": "\"DM Sans\", sans-serif",
+    "scale": "medium"
+  },
+  "ui": {
+    "borderRadius": "1rem",
+    "borderWidth": "1px",
+    "shadow": "none"
+  }
+}

@@ -15,6 +15,7 @@ from typing import Deque, Dict, List, Optional
 from cryptography.fernet import Fernet
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+from sqlalchemy.orm import selectinload
 
 from mul_in_one_nemo.db import get_session_factory
 from mul_in_one_nemo.db.models import APIProfile as APIProfileRow
@@ -36,7 +37,9 @@ class SessionRepository(ABC):
     """Abstract repository responsible for session persistence."""
 
     @abstractmethod
-    async def create(self, tenant_id: str, user_id: str, *, user_persona: str | None = None) -> SessionRecord: ...
+    async def create(self, tenant_id: str, user_id: str,
+                     *, user_persona: str | None = None,
+                     initial_persona_ids: List[int] = []) -> SessionRecord: ...
 
     @abstractmethod
     async def get(self, session_id: str) -> Optional[SessionRecord]: ...
@@ -52,6 +55,9 @@ class SessionRepository(ABC):
 
     @abstractmethod
     async def update_user_persona(self, session_id: str, user_persona: str | None) -> SessionRecord: ...
+
+    @abstractmethod
+    async def update_session_participants(self, session_id: str, persona_ids: List[int]) -> SessionRecord: ...
 
 
 class BaseSQLAlchemyRepository:
@@ -98,7 +104,9 @@ class InMemorySessionRepository(SessionRepository):
         self._messages: Dict[str, Deque[MessageRecord]] = defaultdict(deque)
         self._lock = asyncio.Lock()
 
-    async def create(self, tenant_id: str, user_id: str, *, user_persona: str | None = None) -> SessionRecord:
+    async def create(self, tenant_id: str, user_id: str,
+                     *, user_persona: str | None = None,
+                     initial_persona_ids: List[int] = []) -> SessionRecord:
         async with self._lock:
             session_id = f"sess_{tenant_id}_{uuid.uuid4().hex[:8]}"
             record = SessionRecord(
@@ -142,6 +150,15 @@ class InMemorySessionRepository(SessionRepository):
             if record is None:
                 raise ValueError("Session not found")
             record.user_persona = user_persona
+            return record
+
+    async def update_session_participants(self, session_id: str, persona_ids: List[int]) -> SessionRecord:
+        async with self._lock:
+            record = self._records.get(session_id)
+            if record is None:
+                raise ValueError("Session not found")
+            # In-memory implementation: just store the persona IDs (no actual persona lookup)
+            # Real implementation would need persona repository access
             return record
 
 
@@ -233,23 +250,37 @@ class PersonaDataRepository(ABC):
 class SQLAlchemySessionRepository(SessionRepository, BaseSQLAlchemyRepository):
     """Persistence-backed repository that stores sessions inside Postgres."""
 
-    def __init__(self, session_factory: async_sessionmaker | None = None) -> None:
+    def __init__(self, session_factory: async_sessionmaker | None = None,
+                 persona_data_repository: PersonaDataRepository | None = None) -> None:
         BaseSQLAlchemyRepository.__init__(self, session_factory=session_factory)
+        self._persona_data_repository = persona_data_repository
 
-    async def create(self, tenant_id: str, user_id: str, *, user_persona: str | None = None) -> SessionRecord:
+
+    async def create(self, tenant_id: str, user_id: str,
+                     *, user_persona: str | None = None,
+                     initial_persona_ids: List[int] = []) -> SessionRecord:
         async with self._session_scope() as db:
             tenant = await self._get_or_create_tenant(db, tenant_id)
             user = await self._get_or_create_user(db, tenant, user_id)
+            
+            initial_participants = []
+            if initial_persona_ids:
+                stmt = select(PersonaRow).where(PersonaRow.id.in_(initial_persona_ids))
+                initial_participants = list((await db.execute(stmt)).scalars())
+                if len(initial_participants) != len(initial_persona_ids):
+                    raise ValueError("One or more initial personas not found")
+
             session_row = SessionRow(
                 id=self._generate_session_id(tenant_id),
                 tenant_id=tenant.id,
                 user_id=user.id,
                 status="active",
                 user_persona=user_persona,
+                participants=initial_participants, # Set initial participants
             )
             db.add(session_row)
             await db.flush()
-            return self._to_session_record(session_row, tenant.name, user.email)
+            return self._to_session_record(session_row, tenant.name, user.email, session_row.participants)
 
     async def get(self, session_id: str) -> Optional[SessionRecord]:
         async with self._session_scope() as db:
@@ -258,13 +289,14 @@ class SQLAlchemySessionRepository(SessionRepository, BaseSQLAlchemyRepository):
                 .join(TenantRow, SessionRow.tenant_id == TenantRow.id)
                 .join(UserRow, SessionRow.user_id == UserRow.id)
                 .where(SessionRow.id == session_id)
+                .options(selectinload(SessionRow.participants))
             )
             result = await db.execute(stmt)
             row = result.first()
             if row is None:
                 return None
             session_row, tenant_name, user_email = row
-            return self._to_session_record(session_row, tenant_name, user_email)
+            return self._to_session_record(session_row, tenant_name, user_email, session_row.participants)
 
     async def list_sessions(self, tenant_id: str, user_id: str) -> List[SessionRecord]:
         print("\n[DEBUG] Entering list_sessions method.")
@@ -277,6 +309,7 @@ class SQLAlchemySessionRepository(SessionRepository, BaseSQLAlchemyRepository):
                     .join(UserRow, SessionRow.user_id == UserRow.id)
                     .where(TenantRow.name == tenant_id, UserRow.email == user_id)
                     .order_by(SessionRow.created_at.desc())
+                    .options(selectinload(SessionRow.participants))
                 )
                 print(f"[DEBUG] Executing SQLAlchemy statement...")
                 rows = await db.execute(stmt)
@@ -287,7 +320,7 @@ class SQLAlchemySessionRepository(SessionRepository, BaseSQLAlchemyRepository):
                 processed_records = []
                 for i, (session_row, tenant_name, user_email) in enumerate(results):
                     print(f"[DEBUG] Processing row {i}: session_id={session_row.id}, tenant_name={tenant_name}, user_email={user_email}")
-                    record = self._to_session_record(session_row, tenant_name, user_email)
+                    record = self._to_session_record(session_row, tenant_name, user_email, session_row.participants)
                     processed_records.append(record)
                 
                 print("[DEBUG] Finished processing all rows. Returning records.")
@@ -339,7 +372,49 @@ class SQLAlchemySessionRepository(SessionRepository, BaseSQLAlchemyRepository):
             session_row.user_persona = user_persona
             db.add(session_row)
             await db.flush()
-            return self._to_session_record(session_row, tenant_name, user_email)
+            return self._to_session_record(session_row, tenant_name, user_email, session_row.participants)
+
+    async def update_session_participants(self, session_id: str, persona_ids: List[int]) -> SessionRecord:
+        async with self._session_scope() as db:
+            stmt = (
+                select(SessionRow, TenantRow.name, UserRow.email)
+                .join(TenantRow, SessionRow.tenant_id == TenantRow.id)
+                .join(UserRow, SessionRow.user_id == UserRow.id)
+                .where(SessionRow.id == session_id)
+                .options(selectinload(SessionRow.participants))
+            )
+            result = await db.execute(stmt)
+            row = result.first()
+            if row is None:
+                raise ValueError("Session not found")
+            session_row, tenant_name, user_email = row
+
+            unique_ids: List[int] = []
+            seen: set[int] = set()
+            for pid in persona_ids:
+                if pid not in seen:
+                    unique_ids.append(pid)
+                    seen.add(pid)
+
+            participants: List[PersonaRow] = []
+            if unique_ids:
+                persona_stmt = (
+                    select(PersonaRow)
+                    .where(
+                        PersonaRow.id.in_(unique_ids),
+                        PersonaRow.tenant_id == session_row.tenant_id,
+                    )
+                )
+                persona_rows = list((await db.execute(persona_stmt)).scalars())
+                if len(persona_rows) != len(unique_ids):
+                    raise ValueError("One or more personas not found")
+                persona_map = {persona.id: persona for persona in persona_rows}
+                participants = [persona_map[pid] for pid in unique_ids]
+
+            session_row.participants = participants
+            db.add(session_row)
+            await db.flush()
+            return self._to_session_record(session_row, tenant_name, user_email, participants)
 
     @staticmethod
     def _generate_session_id(tenant_id: str) -> str:
@@ -364,13 +439,21 @@ class SQLAlchemySessionRepository(SessionRepository, BaseSQLAlchemyRepository):
         normalized = sender.strip().lower()
         return "user" if normalized in {"user", "tenant", "human"} else "agent"
 
-    def _to_session_record(self, row: SessionRow, tenant_name: str, user_email: str) -> SessionRecord:
+    def _to_session_record(
+        self,
+        row: SessionRow,
+        tenant_name: str,
+        user_email: str,
+        participants_rows: List[PersonaRow] | None = None,
+    ) -> SessionRecord:
+        participants = participants_rows if participants_rows is not None else list(row.participants)
         return SessionRecord(
             id=row.id,
             tenant_id=tenant_name,
             user_id=user_email,
             created_at=self._normalize_dt(row.created_at),
             user_persona=row.user_persona,
+            participants=[SQLAlchemyPersonaRepository._to_persona_record(p, tenant_name, None) for p in participants]
         )
 
     def _to_message_record(self, row: SessionMessageRow) -> MessageRecord:
@@ -725,8 +808,8 @@ class SQLAlchemyPersonaRepository(PersonaDataRepository, BaseSQLAlchemyRepositor
             api_key_preview=preview,
         )
 
+    @staticmethod
     def _to_persona_record(
-        self,
         row: PersonaRow,
         tenant_name: str,
         profile: APIProfileRow | None,

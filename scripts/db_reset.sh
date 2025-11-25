@@ -5,6 +5,16 @@ SCRIPT_DIR="$(cd "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 POSTGRES_DATA="${POSTGRES_DATA:-$ROOT_DIR/.postgresql/data}"
 
+echo "⚠️  WARNING: This will DELETE ALL DATA in PostgreSQL!"
+echo "Data directory: $POSTGRES_DATA"
+echo ""
+read -p "Are you sure you want to reset? Type 'yes' to confirm: " -r
+echo
+if [[ ! $REPLY =~ ^yes$ ]]; then
+  echo "Aborting reset."
+  exit 1
+fi
+
 echo "Resetting PostgreSQL cluster at $POSTGRES_DATA"
 if [ -d "$POSTGRES_DATA" ]; then
   # Stop the server if it's running before removing the directory
@@ -12,6 +22,15 @@ if [ -d "$POSTGRES_DATA" ]; then
     echo "Stopping running PostgreSQL server..."
     pg_ctl -D "$POSTGRES_DATA" stop -m fast
   fi
+  
+  # Create a backup before deleting (optional but recommended)
+  BACKUP_DIR="$ROOT_DIR/.postgresql/backups"
+  mkdir -p "$BACKUP_DIR"
+  TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+  BACKUP_NAME="backup_before_reset_$TIMESTAMP.tar.gz"
+  echo "Creating backup: $BACKUP_DIR/$BACKUP_NAME"
+  tar -czf "$BACKUP_DIR/$BACKUP_NAME" -C "$ROOT_DIR/.postgresql" data 2>/dev/null || echo "Backup failed (data may be empty)"
+  
   echo "Removing existing data directory"
   rm -rf "$POSTGRES_DATA"
 fi

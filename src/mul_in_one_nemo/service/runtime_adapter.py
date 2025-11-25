@@ -136,11 +136,15 @@ class NemoRuntimeAdapter(RuntimeAdapter):
         memory = ConversationMemory()
         if message.history:
             for entry in message.history:
-                memory.add(entry["sender"], entry["content"])
-        
-        # The user's new message is the starting point
+                # 支持群聊式上下文，补全 recipient 字段
+                memory.add(
+                    entry["sender"],
+                    entry["content"],
+                    entry.get("recipient")
+                )
+        # 用户新消息，recipient 默认为 None（群聊）
         user_message_content = message.content
-        memory.add(message.sender or "user", user_message_content)
+        memory.add(message.sender or "user", user_message_content, None)
 
         scheduler = self._build_scheduler(
             persona_settings.personas,
@@ -210,6 +214,7 @@ class NemoRuntimeAdapter(RuntimeAdapter):
                 is_first_round = False
 
                 yield {"event": "agent.end", "data": {"sender": persona_name, "content": full_reply}}
-                memory.add(persona_name, full_reply)
+                # agent 回复 recipient 默认为 None（群聊），如需@可在此扩展
+                memory.add(persona_name, full_reply, None)
                 last_speaker = persona_name
                 context_tags.extend(self._extract_tags(full_reply, persona_settings.personas))

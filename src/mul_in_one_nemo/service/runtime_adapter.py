@@ -157,11 +157,18 @@ class NemoRuntimeAdapter(RuntimeAdapter):
 
         # 2. Set initial context for the turn
         context_tags = self._extract_tags(user_message_content, persona_settings.personas)
+        user_selected_personas = None  # Track user's explicit selection
         if message.target_personas:
-            valid_persona_names = {p.name for p in persona_settings.personas}
-            for target in message.target_personas:
-                if target in valid_persona_names and target not in context_tags:
-                    context_tags.append(target)
+            # Map handle to name since target_personas contains handles (e.g., "Uika")
+            # but context_tags and scheduler use persona names (e.g., "三角初华")
+            handle_to_name = {p.handle: p.name for p in persona_settings.personas}
+            user_selected_personas = []
+            for target_handle in message.target_personas:
+                persona_name = handle_to_name.get(target_handle)
+                if persona_name:
+                    if persona_name not in context_tags:
+                        context_tags.append(persona_name)
+                    user_selected_personas.append(persona_name)
 
         last_speaker = message.sender or "user"
         is_first_round = True
@@ -169,11 +176,19 @@ class NemoRuntimeAdapter(RuntimeAdapter):
 
         # 3. Start the conversation loop
         for exchange_round in range(max_exchanges):
-            speakers = scheduler.next_turn(
-                context_tags=context_tags if exchange_round == 0 else None,
-                last_speaker=last_speaker,
-                is_user_message=is_first_round,
-            )
+            # If user explicitly selected personas, restrict conversation to only those personas
+            if user_selected_personas:
+                speakers = scheduler.next_turn(
+                    context_tags=context_tags if exchange_round == 0 else user_selected_personas,
+                    last_speaker=last_speaker,
+                    is_user_message=is_first_round,
+                )
+            else:
+                speakers = scheduler.next_turn(
+                    context_tags=context_tags if exchange_round == 0 else None,
+                    last_speaker=last_speaker,
+                    is_user_message=is_first_round,
+                )
 
             if not speakers:
                 break

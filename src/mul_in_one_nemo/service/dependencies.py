@@ -68,14 +68,39 @@ def get_rag_service() -> RAGService:
     """Provide a singleton instance of the RAGService."""
     repo = get_persona_repository()
 
-    async def api_config_resolver(persona_id: int | None) -> dict:
+    async def api_config_resolver(persona_id: int | None, use_embedding: bool = False) -> dict:
         if persona_id is None:
             raise ValueError("Persona ID required for API configuration resolution")
         
+        if use_embedding:
+            # Get tenant ID from persona to fetch tenant's global embedding config  
+            # FIXME: This requires an additional DB call; could be optimized
+            personas = await repo.list_personas("default_tenant")  # FIXME: tenant_id hardcoded
+            persona = next((p for p in personas if p.id == persona_id), None)
+            if persona is None:
+                raise ValueError(f"Persona {persona_id} not found")
+            
+            embedding_config = await repo.get_tenant_embedding_config(persona.tenant_id)
+            if embedding_config.get("api_profile_id") is None:
+                raise ValueError(
+                    f"No embedding model configured for tenant {persona.tenant_id}. "
+                    "Please configure an embedding API profile in Persona settings."
+                )
+            
+            # get_persona_api_config_for_embedding will fetch and decrypt the key
+            embedding_api_config = await repo.get_embedding_api_config_for_tenant(persona.tenant_id)
+            if embedding_api_config is None:
+                raise ValueError(f"Embedding API profile misconfigured for tenant {persona.tenant_id}")
+            
+            return embedding_api_config
+        
+        # Use persona's own API profile for LLM
         config = await repo.get_persona_api_config(persona_id)
         if config is None:
             raise ValueError(f"No API configuration found for persona {persona_id}")
         return config
 
     return RAGService(api_config_resolver=api_config_resolver)
+
+
 

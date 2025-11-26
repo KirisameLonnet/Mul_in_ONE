@@ -39,6 +39,7 @@ class Tenant(Base):
     name: Mapped[str] = mapped_column(String(128), unique=True, nullable=False)
     plan: Mapped[str] = mapped_column(String(32), default="free")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    embedding_api_profile_id: Mapped[int | None] = mapped_column(ForeignKey("api_profiles.id"), nullable=True)
 
     users: Mapped[list["User"]] = relationship("User", back_populates="tenant", cascade="all, delete-orphan")
     sessions: Mapped[list["Session"]] = relationship("Session", back_populates="tenant", cascade="all, delete-orphan")

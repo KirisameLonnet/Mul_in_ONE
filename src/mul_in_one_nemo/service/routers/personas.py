@@ -137,6 +137,18 @@ class PersonaIngestResponse(BaseModel):
     collection_name: str | None = Field(default=None, description="Milvus collection name used")
 
 
+class EmbeddingConfigUpdate(BaseModel):
+    api_profile_id: int | None = Field(default=None, ge=1, description="API Profile ID for embedding model")
+
+
+class EmbeddingConfigResponse(BaseModel):
+    tenant_id: str
+    api_profile_id: int | None
+    api_profile_name: str | None = None
+    api_model: str | None = None
+    api_base_url: AnyHttpUrl | None = None
+
+
 @router.get("/api-profiles", response_model=list[APIProfileResponse])
 async def list_api_profiles(
     tenant_id: str = Query(..., description="Tenant identifier"),
@@ -424,4 +436,43 @@ async def refresh_persona_rag(
     except Exception as exc:  # pragma: no cover - surface failure to client
         logger.exception("Failed to refresh persona background for id=%s", persona_id)
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc)) from exc
+
+
+@router.get("/embedding-config", response_model=EmbeddingConfigResponse)
+async def get_embedding_config(
+    tenant_id: str = Query(..., description="Tenant identifier"),
+    repository: PersonaDataRepository = Depends(get_persona_repository),
+) -> EmbeddingConfigResponse:
+    """获取租户的全局 Embedding 模型配置"""
+    logger.info("Fetching embedding config for tenant=%s", tenant_id)
+    config = await repository.get_tenant_embedding_config(tenant_id)
+    return EmbeddingConfigResponse(
+        tenant_id=tenant_id,
+        api_profile_id=config.get("api_profile_id"),
+        api_profile_name=config.get("api_profile_name"),
+        api_model=config.get("api_model"),
+        api_base_url=config.get("api_base_url"),
+    )
+
+
+@router.put("/embedding-config", response_model=EmbeddingConfigResponse)
+async def update_embedding_config(
+    payload: EmbeddingConfigUpdate,
+    tenant_id: str = Query(..., description="Tenant identifier"),
+    repository: PersonaDataRepository = Depends(get_persona_repository),
+) -> EmbeddingConfigResponse:
+    """设置租户的全局 Embedding 模型配置"""
+    logger.info("Updating embedding config for tenant=%s to profile_id=%s", tenant_id, payload.api_profile_id)
+    try:
+        config = await repository.update_tenant_embedding_config(tenant_id, payload.api_profile_id)
+        return EmbeddingConfigResponse(
+            tenant_id=tenant_id,
+            api_profile_id=config.get("api_profile_id"),
+            api_profile_name=config.get("api_profile_name"),
+            api_model=config.get("api_model"),
+            api_base_url=config.get("api_base_url"),
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+
 

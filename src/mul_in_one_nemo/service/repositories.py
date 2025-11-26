@@ -268,6 +268,15 @@ class PersonaDataRepository(ABC):
     @abstractmethod
     async def load_persona_settings(self, tenant_id: str) -> PersonaSettings: ...
 
+    @abstractmethod
+    async def get_tenant_embedding_config(self, tenant_id: str) -> dict: ...
+
+    @abstractmethod
+    async def update_tenant_embedding_config(self, tenant_id: str, api_profile_id: int | None) -> dict: ...
+
+    @abstractmethod
+    async def get_embedding_api_config_for_tenant(self, tenant_id: str) -> dict | None: ...
+
 
 class SQLAlchemySessionRepository(SessionRepository, BaseSQLAlchemyRepository):
     """Persistence-backed repository that stores sessions inside Postgres."""
@@ -833,6 +842,74 @@ class SQLAlchemyPersonaRepository(PersonaDataRepository, BaseSQLAlchemyRepositor
                 "base_url": row.base_url,
                 "api_key": self._decrypt_api_key(row.api_key_cipher),
                 "temperature": row.temperature,
+            }
+
+    async def get_tenant_embedding_config(self, tenant_id: str) -> dict:
+        """Get the tenant's global embedding API profile configuration"""
+        async with self._session_scope() as db:
+            logger.info("Fetching tenant embedding config for tenant=%s", tenant_id)
+            tenant = await self._get_tenant(db, tenant_id)
+            
+            if tenant.embedding_api_profile_id is None:
+                return {
+                    "api_profile_id": None,
+                    "api_profile_name": None,
+                    "api_model": None,
+                    "api_base_url": None,
+                }
+            
+            profile = await db.get(APIProfileRow, tenant.embedding_api_profile_id)
+            if profile is None:
+                return {
+                    "api_profile_id": None,
+                    "api_profile_name": None,
+                    "api_model": None,
+                    "api_base_url": None,
+                }
+            
+            return {
+                "api_profile_id": profile.id,
+                "api_profile_name": profile.name,
+                "api_model": profile.model,
+                "api_base_url": profile.base_url,
+            }
+
+    async def update_tenant_embedding_config(self, tenant_id: str, api_profile_id: int | None) -> dict:
+        """Update the tenant's global embedding API profile configuration"""
+        async with self._session_scope() as db:
+            logger.info("Updating tenant embedding config tenant=%s profile_id=%s", tenant_id, api_profile_id)
+            tenant = await self._get_tenant(db, tenant_id)
+            
+            # Validate the profile exists and belongs to this tenant if not None
+            if api_profile_id is not None:
+                profile = await self._assert_profile_owned(db, tenant.id, api_profile_id)
+                tenant.embedding_api_profile_id = profile.id
+            else:
+                tenant.embedding_api_profile_id = None
+            
+            await db.flush()
+            logger.info("Tenant embedding config updated tenant=%s", tenant_id)
+            
+            # Return the updated config
+            return await self.get_tenant_embedding_config(tenant_id)
+
+    async def get_embedding_api_config_for_tenant(self, tenant_id: str) -> dict | None:
+        """Get the tenant's embedding API config with decrypted API key for actual use"""
+        async with self._session_scope() as db:
+            tenant = await self._get_tenant(db, tenant_id)
+            
+            if tenant.embedding_api_profile_id is None:
+                return None
+            
+            profile = await db.get(APIProfileRow, tenant.embedding_api_profile_id)
+            if profile is None:
+                return None
+            
+            return {
+                "model": profile.model,
+                "base_url": profile.base_url,
+                "api_key": self._decrypt_api_key(profile.api_key_cipher),
+                "temperature": profile.temperature,
             }
 
     async def _assert_profile_owned(self, db: AsyncSession, tenant_db_id: int, profile_id: int) -> APIProfileRow:

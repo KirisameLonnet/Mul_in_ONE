@@ -8,6 +8,42 @@
       </div>
     </div>
 
+    <!-- Embedding Config Section -->
+    <q-card class="q-mb-md bg-amber-1">
+      <q-card-section>
+        <div class="text-h6 q-mb-sm">
+          <q-icon name="settings" class="q-mr-sm" />
+          全局 Embedding 模型配置
+        </div>
+        <div class="text-caption text-grey-7 q-mb-md">
+          ⚠️ 使用人物背景传记功能（RAG）需要配置一个 Embedding 模型。此配置对所有 Persona 生效。
+        </div>
+        <div class="row items-center q-gutter-md">
+          <q-select
+            v-model="embeddingProfileId"
+            :options="apiProfiles"
+            option-value="id"
+            option-label="name"
+            label="Embedding API Profile"
+            emit-value
+            map-options
+            clearable
+            style="min-width: 300px"
+            hint="选择一个支持 embedding 的模型（如 BAAI/bge-large-zh-v1.5）"
+          />
+          <q-btn 
+            color="primary" 
+            label="保存配置" 
+            @click="saveEmbeddingConfig"
+            :loading="savingEmbeddingConfig"
+          />
+          <div v-if="currentEmbeddingModel" class="text-body2">
+            当前模型: <q-chip dense>{{ currentEmbeddingModel }}</q-chip>
+          </div>
+        </div>
+      </q-card-section>
+    </q-card>
+
     <q-table
       :rows="personas"
       :columns="columns"
@@ -137,6 +173,11 @@ const updating = ref(false)
 const deleting = ref(false)
 const selectedPersona = ref<Persona | null>(null)
 
+// Embedding config state
+const embeddingProfileId = ref<number | null>(null)
+const currentEmbeddingModel = ref<string>('')
+const savingEmbeddingConfig = ref(false)
+
 const newPersona = reactive({
   name: '',
   handle: '',
@@ -171,7 +212,7 @@ const columns = [
   { name: 'tone', label: 'Tone', field: 'tone' },
   { name: 'proactivity', label: 'Proactivity', field: 'proactivity' },
   { name: 'api_profile', label: 'API Profile', field: 'api_profile_name' },
-  { name: 'actions', label: 'Actions', field: 'actions', align: 'right' }
+  { name: 'actions', label: 'Actions', field: 'actions', align: 'right' as const }
 ]
 
 const loadData = async () => {
@@ -183,10 +224,51 @@ const loadData = async () => {
     ])
     personas.value = pData
     apiProfiles.value = apData
+    // Load current embedding config
+    await loadEmbeddingConfig()
   } catch (e) {
     $q.notify({ type: 'negative', message: 'Failed to load data' })
   } finally {
     loading.value = false
+  }
+}
+
+const loadEmbeddingConfig = async () => {
+  try {
+    const response = await fetch(`/api/embedding-config?tenant_id=${authState.tenantId}`)
+    if (response.ok) {
+      const data = await response.json()
+      if (data.api_profile_id) {
+        embeddingProfileId.value = data.api_profile_id
+        currentEmbeddingModel.value = data.model_name || ''
+      }
+    }
+  } catch (e) {
+    console.error('Failed to load embedding config:', e)
+  }
+}
+
+const saveEmbeddingConfig = async () => {
+  savingEmbeddingConfig.value = true
+  try {
+    const response = await fetch(`/api/embedding-config?tenant_id=${authState.tenantId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        api_profile_id: embeddingProfileId.value
+      })
+    })
+    if (response.ok) {
+      $q.notify({ type: 'positive', message: 'Embedding 配置已保存' })
+      await loadEmbeddingConfig()
+    } else {
+      const error = await response.json()
+      $q.notify({ type: 'negative', message: error.detail || '保存配置失败' })
+    }
+  } catch (e) {
+    $q.notify({ type: 'negative', message: '保存配置失败' })
+  } finally {
+    savingEmbeddingConfig.value = false
   }
 }
 

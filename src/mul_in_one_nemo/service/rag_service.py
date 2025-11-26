@@ -127,8 +127,15 @@ class RAGService:
         raise ValueError(f"Default API '{default_api_name}' not found in api_configuration.yaml")
 
     async def _create_embedder(self, persona_id: Optional[int] = None) -> OpenAIEmbeddings:
-        """Create embedder from resolved API config (per persona when provided)."""
-        api_config = await self._resolve_api_config(persona_id)
+        """Create embedder from tenant's global embedding config."""
+        # Always use tenant's global embedding API profile
+        if self._api_config_resolver is None:
+            # YAML prototype mode fallback
+            api_config = await self._resolve_api_config(persona_id)
+        else:
+            # Production mode: get tenant embedding config
+            api_config = await self._api_config_resolver(persona_id, use_embedding=True)
+        
         logger.info(f"Creating embedder for model: {api_config.get('model')}")
         return OpenAIEmbeddings(
             model=api_config.get("model"),

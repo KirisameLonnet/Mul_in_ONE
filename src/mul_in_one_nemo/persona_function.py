@@ -130,16 +130,40 @@ async def persona_dialogue_function(config: PersonaDialogueFunctionConfig, build
 
     async def _respond_single(input_data: PersonaDialogueInput) -> PersonaDialogueOutput:
         prompts = await _build_prompts(input_data)
-        response = await llm.ainvoke(prompts)
-        return PersonaDialogueOutput(response=_extract_text(response))
+        try:
+            response = await llm.ainvoke(prompts)
+            return PersonaDialogueOutput(response=_extract_text(response))
+        except Exception as e:
+            error_msg = str(e)
+            # 检查是否为余额不足或 API 不可用错误
+            if "balance is insufficient" in error_msg or "30001" in error_msg:
+                return PersonaDialogueOutput(response="[系统提示] API 账户余额不足，请充值后再试。")
+            elif "401" in error_msg or "authentication" in error_msg.lower():
+                return PersonaDialogueOutput(response="[系统提示] API 认证失败，请检查 API Key 配置。")
+            elif "429" in error_msg or "rate limit" in error_msg.lower():
+                return PersonaDialogueOutput(response="[系统提示] API 请求频率超限，请稍后再试。")
+            else:
+                return PersonaDialogueOutput(response=f"[系统提示] API 调用失败，请检查 API 可用性与配置：{error_msg}")
 
     async def _respond_stream(input_data: PersonaDialogueInput) -> AsyncGenerator[PersonaDialogueOutput, None]:
         prompts = await _build_prompts(input_data)
 
-        async for chunk in llm.astream(prompts):
-            text = _extract_text(chunk)
-            if text:
-                yield PersonaDialogueOutput(response=text)
+        try:
+            async for chunk in llm.astream(prompts):
+                text = _extract_text(chunk)
+                if text:
+                    yield PersonaDialogueOutput(response=text)
+        except Exception as e:
+            error_msg = str(e)
+            # 检查是否为余额不足或 API 不可用错误
+            if "balance is insufficient" in error_msg or "30001" in error_msg:
+                yield PersonaDialogueOutput(response="[系统提示] API 账户余额不足，请充值后再试。")
+            elif "401" in error_msg or "authentication" in error_msg.lower():
+                yield PersonaDialogueOutput(response="[系统提示] API 认证失败，请检查 API Key 配置。")
+            elif "429" in error_msg or "rate limit" in error_msg.lower():
+                yield PersonaDialogueOutput(response="[系统提示] API 请求频率超限，请稍后再试。")
+            else:
+                yield PersonaDialogueOutput(response=f"[系统提示] API 调用失败，请检查 API 可用性与配置：{error_msg}")
 
     yield FunctionInfo.create(
         single_fn=_respond_single,

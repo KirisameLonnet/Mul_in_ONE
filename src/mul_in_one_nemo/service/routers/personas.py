@@ -182,6 +182,9 @@ async def update_api_profile(
     updates = payload.model_dump(exclude_unset=True)
     if not updates:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No fields provided")
+    # Convert AnyHttpUrl to string for database storage
+    if "base_url" in updates and updates["base_url"] is not None:
+        updates["base_url"] = str(updates["base_url"])
     try:
         record = await repository.update_api_profile(tenant_id, profile_id, **updates)
     except ValueError as exc:

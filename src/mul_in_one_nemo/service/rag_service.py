@@ -321,8 +321,8 @@ class RAGService:
             # Create retriever
             retriever = await self._create_retriever(persona_id, top_k)
             
-            # Retrieve documents
-            docs = await retriever.aget_relevant_documents(query)
+            # Retrieve documents (using ainvoke instead of deprecated aget_relevant_documents)
+            docs = await retriever.ainvoke(query)
             logger.info(f"Retrieved {len(docs)} documents")
             
             return docs

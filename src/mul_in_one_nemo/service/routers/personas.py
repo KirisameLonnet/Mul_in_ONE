@@ -342,3 +342,44 @@ async def ingest_persona_text(
     except Exception as exc:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc)) from exc
 
+
+    @router.post("/personas/{persona_id}/refresh_rag", response_model=PersonaIngestResponse, status_code=status.HTTP_200_OK)
+    async def refresh_persona_rag(
+        persona_id: int,
+        tenant_id: str = Query(..., description="Tenant identifier"),
+        repository: PersonaDataRepository = Depends(get_persona_repository),
+        rag_service: RAGService = Depends(get_rag_service),
+    ) -> PersonaIngestResponse:
+        """刷新 Persona 的 RAG 资料库（从数据库中的 background 字段重新摄取）"""
+        try:
+            # 获取 Persona 信息
+            persona = await repository.get_persona(tenant_id, persona_id)
+            if persona is None:
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Persona not found")
+        
+            if not persona.background or not persona.background.strip():
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST, 
+                    detail="Persona has no background content to ingest"
+                )
+        
+            # 删除旧的 background 资料
+            await rag_service.delete_documents_by_source(persona_id, source="background")
+        
+            # 重新摄取
+            result = await rag_service.ingest_text(
+                text=persona.background,
+                persona_id=persona_id,
+                source="background"
+            )
+        
+            return PersonaIngestResponse(
+                status=result["status"],
+                documents_added=result["documents_added"],
+                collection_name=result["collection_name"],
+            )
+        except HTTPException:
+            raise
+        except Exception as exc:
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc)) from exc
+

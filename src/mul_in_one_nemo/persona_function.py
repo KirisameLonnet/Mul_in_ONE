@@ -1,5 +1,6 @@
 """Custom function registration for persona replies."""
 
+import logging
 from typing import Any, Dict, List, Optional, AsyncGenerator
 
 from pydantic import BaseModel, Field
@@ -14,6 +15,8 @@ from nat.data_models.function import FunctionBaseConfig
 
 # RAG service singleton accessor
 from mul_in_one_nemo.service.rag_dependencies import get_rag_service
+
+logger = logging.getLogger(__name__)
 
 
 class PersonaDialogueInput(BaseModel):
@@ -78,26 +81,11 @@ async def persona_dialogue_function(config: PersonaDialogueFunctionConfig, build
 - 可以简短，不需要每次都长篇大论
 - 可以表达情绪和态度
 
+【重要】如果下文中提供了「检索到的相关资料」，请优先基于这些资料回答，确保回答准确且符合角色设定。
+
 记住：这是群聊，要像真人一样自然互动！"""
 
         prompts: List[HumanMessage | SystemMessage] = [SystemMessage(content=system_prompt)]
-
-        # RAG: 检索上下文并作为系统提示追加
-        if user_message and persona_id is not None:
-            try:
-                rag_service = get_rag_service()
-                docs = await rag_service.retrieve_documents(user_message, persona_id, top_k=4)
-                if docs:
-                    context_text = "\n\n".join(d.page_content for d in docs)
-                    rag_note = (
-                        "【检索到的相关资料】\n"
-                        f"{context_text}\n"
-                        "请优先基于以上资料回答；若无帮助可忽略此段。"
-                    )
-                    prompts.append(SystemMessage(content=rag_note))
-            except Exception as e:
-                # 忽略检索失败，继续正常对话
-                prompts.append(SystemMessage(content=f"[RAG检索暂不可用: {e}]"))
 
         if config.instructions:
             prompts.append(SystemMessage(content=f"额外指示：{config.instructions}"))
@@ -111,6 +99,26 @@ async def persona_dialogue_function(config: PersonaDialogueFunctionConfig, build
             prompts.append(HumanMessage(content=f"[用户刚刚说]: {user_message}\n\n现在轮到你发言了。"))
         else:
             prompts.append(HumanMessage(content="[基于以上对话，如果你有想法就发言，如果没什么可说的就保持简短或沉默]"))
+
+        # RAG: 检索上下文并作为系统提示追加（放在最后，紧贴用户消息）
+        if user_message and persona_id is not None:
+            try:
+                rag_service = get_rag_service()
+                docs = await rag_service.retrieve_documents(user_message, persona_id, top_k=4)
+                if docs:
+                    logger.info(f"RAG retrieved {len(docs)} documents for persona {persona_id}")
+                    context_text = "\n\n".join(d.page_content for d in docs)
+                    rag_note = (
+                        "【检索到的相关资料】\n"
+                        f"{context_text}\n\n"
+                        "请严格基于以上资料回答用户的问题。这些是关于你自己的真实背景信息，务必准确使用。"
+                    )
+                    prompts.append(SystemMessage(content=rag_note))
+                else:
+                    logger.info(f"RAG returned no documents for persona {persona_id}")
+            except Exception as e:
+                # 记录检索失败日志，继续正常对话
+                logger.error(f"RAG retrieval failed for persona {persona_id}: {e}", exc_info=True)
 
         return prompts
 

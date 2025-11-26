@@ -4,6 +4,7 @@ import LoginPage from '../pages/LoginPage.vue'
 import SessionsPage from '../pages/SessionsPage.vue'
 import PersonasPage from '../pages/PersonasPage.vue'
 import ApiProfilesPage from '../pages/ApiProfilesPage.vue'
+import DebugPage from '../pages/DebugPage.vue'
 import ChatConversationPage from '../pages/ChatConversationPage.vue'
 import { authState } from '../api'
 
@@ -20,7 +21,8 @@ const routes = [
       { path: '', redirect: '/sessions' },
       { path: 'sessions', component: SessionsPage },
       { path: 'personas', component: PersonasPage },
-      { path: 'profiles', component: ApiProfilesPage }
+      { path: 'profiles', component: ApiProfilesPage },
+      { path: 'debug', component: DebugPage }
     ]
   },
   {
@@ -35,7 +37,7 @@ const router = createRouter({
   routes
 })
 
-router.beforeEach((to, from, next) => {
+router.beforeEach((to, _from, next) => {
   if (to.meta.requiresAuth && !authState.isLoggedIn) {
     next('/login')
   } else {

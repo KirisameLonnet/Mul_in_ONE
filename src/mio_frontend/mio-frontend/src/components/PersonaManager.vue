@@ -69,6 +69,16 @@
                 <d-tag type="success" variant="outline">Proactivity: {{ persona.proactivity }}</d-tag>
                 <d-tag v-if="persona.api_profile_name" type="warning" variant="outline">API: {{ persona.api_profile_name }}</d-tag>
               </div>
+                <div class="card-actions">
+                  <d-button 
+                    size="sm" 
+                    variant="outline" 
+                    @click="handleRefreshRAG(persona.id)"
+                    :loading="refreshingPersonaId === persona.id"
+                  >
+                    刷新资料库
+                  </d-button>
+                </div>
             </div>
           </d-card>
         </div>
@@ -84,6 +94,7 @@ import { getPersonas, createPersona, getAPIProfiles, type Persona, type APIProfi
 const personas = ref<Persona[]>([]);
 const apiProfiles = ref<APIProfile[]>([]);
 const loading = ref(false);
+const refreshingPersonaId = ref<number | null>(null);
 
 const newPersona = reactive({
   name: '',
@@ -152,6 +163,34 @@ onMounted(loadData);
   margin-bottom: 1.5rem;
 }
 
+const handleRefreshRAG = async (personaId: number) => {
+  refreshingPersonaId.value = personaId;
+  try {
+    const response = await fetch(
+      `http://localhost:8000/api/personas/${personaId}/refresh_rag?tenant_id=${authState.tenantId}`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      }
+    );
+    
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || 'Failed to refresh RAG');
+    }
+    
+    const result = await response.json();
+    alert(`成功刷新！摄取了 ${result.documents_added} 个文档片段到 ${result.collection_name}`);
+  } catch (e: any) {
+    alert(`刷新失败：${e.message}`);
+    console.error(e);
+  } finally {
+    refreshingPersonaId.value = null;
+  }
+};
+
 .content-wrapper {
   display: grid;
   grid-template-columns: 350px 1fr;
@@ -206,6 +245,12 @@ onMounted(loadData);
   flex-wrap: wrap;
   gap: 0.5rem;
 }
+
+  .card-actions {
+    margin-top: 0.5rem;
+    display: flex;
+    gap: 0.5rem;
+  }
 
 @media (max-width: 1024px) {
   .content-wrapper {

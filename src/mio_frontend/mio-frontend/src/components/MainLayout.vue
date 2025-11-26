@@ -9,7 +9,7 @@
         </div>
       </div>
 
-      <d-menu :default-select-keys="[currentView]" @select="onMenuSelect">
+      <d-menu :select-keys="[currentView]" @select="onMenuSelect">
         <d-menu-item key="sessions">
           <template #icon><i class="icon-message"></i></template>
           Sessions
@@ -21,6 +21,10 @@
         <d-menu-item key="profiles">
           <template #icon><i class="icon-setting"></i></template>
           API Profiles
+        </d-menu-item>
+        <d-menu-item key="debug">
+          <template #icon><i class="icon-info"></i></template>
+          DEBUG
         </d-menu-item>
       </d-menu>
 
@@ -35,6 +39,7 @@
       <SessionManager v-if="currentView === 'sessions'" />
       <PersonaManager v-if="currentView === 'personas'" />
       <APIProfileManager v-if="currentView === 'profiles'" />
+      <DebugPage v-if="currentView === 'debug'" />
     </d-content>
   </d-layout>
 </template>
@@ -45,6 +50,7 @@ import { authState, logout } from '../api';
 import SessionManager from './SessionManager.vue';
 import PersonaManager from './PersonaManager.vue';
 import APIProfileManager from './APIProfileManager.vue';
+import DebugPage from '../pages/DebugPage.vue';
 
 const currentView = ref('sessions');
 

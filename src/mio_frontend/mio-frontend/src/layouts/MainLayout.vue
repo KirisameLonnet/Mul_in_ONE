@@ -43,6 +43,15 @@
             API Profiles
           </q-item-section>
         </q-item>
+
+        <q-item clickable v-ripple to="/debug">
+          <q-item-section avatar>
+            <q-icon name="bug_report" />
+          </q-item-section>
+          <q-item-section>
+            DEBUG
+          </q-item-section>
+        </q-item>
       </q-list>
     </q-drawer>
 

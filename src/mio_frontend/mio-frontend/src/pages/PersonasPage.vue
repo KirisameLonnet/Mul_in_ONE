@@ -80,8 +80,18 @@
             <q-input v-model="newPersona.handle" label="Handle" prefix="@" :rules="[val => !!val || 'Field is required']" />
             <q-input v-model="newPersona.tone" label="Tone" />
             <q-input v-model.number="newPersona.proactivity" type="number" label="Proactivity (0-1)" step="0.1" min="0" max="1" />
-            <q-input v-model.number="newPersona.memory_window" type="number" label="Memory Window" min="1" max="200" />
-            <q-input v-model.number="newPersona.max_agents_per_turn" type="number" label="Max Agents/Turn" min="1" max="8" />
+            <q-input
+              v-model.number="newPersona.memory_window"
+              type="number"
+              label="Memory Window (-1 = Unlimited)"
+              :rules="[val => val === -1 || val >= 1 || '必须为 -1 或 ≥ 1']"
+            />
+            <q-input
+              v-model.number="newPersona.max_agents_per_turn"
+              type="number"
+              label="Max Agents/Turn (-1 = Unlimited)"
+              :rules="[val => val === -1 || val >= 1 || '必须为 -1 或 ≥ 1']"
+            />
             <q-select 
               v-model="newPersona.api_profile_id" 
               :options="apiProfiles" 
@@ -116,8 +126,18 @@
             <q-input v-model="editPersona.handle" label="Handle" prefix="@" :rules="[val => !!val || 'Field is required']" />
             <q-input v-model="editPersona.tone" label="Tone" />
             <q-input v-model.number="editPersona.proactivity" type="number" label="Proactivity (0-1)" step="0.1" min="0" max="1" />
-            <q-input v-model.number="editPersona.memory_window" type="number" label="Memory Window" min="1" max="200" />
-            <q-input v-model.number="editPersona.max_agents_per_turn" type="number" label="Max Agents/Turn" min="1" max="8" />
+            <q-input
+              v-model.number="editPersona.memory_window"
+              type="number"
+              label="Memory Window (-1 = Unlimited)"
+              :rules="[val => val === -1 || val >= 1 || '必须为 -1 或 ≥ 1']"
+            />
+            <q-input
+              v-model.number="editPersona.max_agents_per_turn"
+              type="number"
+              label="Max Agents/Turn (-1 = Unlimited)"
+              :rules="[val => val === -1 || val >= 1 || '必须为 -1 或 ≥ 1']"
+            />
             <q-select 
               v-model="editPersona.api_profile_id" 
               :options="apiProfiles" 

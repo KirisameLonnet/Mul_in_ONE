@@ -591,6 +591,30 @@ class SQLAlchemyPersonaRepository(PersonaDataRepository, BaseSQLAlchemyRepositor
             profile, tenant_name = row
             return self._to_api_profile_record(profile, tenant_name)
 
+    async def get_api_profile_with_key(self, tenant_id: str, profile_id: int) -> dict | None:
+        """Fetch API profile with decrypted key for internal use (e.g., health checks)."""
+        async with self._session_scope() as db:
+            logger.info("Fetching API profile with key id=%s tenant=%s", profile_id, tenant_id)
+            stmt = (
+                select(APIProfileRow, TenantRow.name)
+                .join(TenantRow, APIProfileRow.tenant_id == TenantRow.id)
+                .where(TenantRow.name == tenant_id, APIProfileRow.id == profile_id)
+            )
+            result = await db.execute(stmt)
+            row = result.first()
+            if row is None:
+                return None
+            profile, tenant_name = row
+            return {
+                "id": profile.id,
+                "tenant_id": tenant_name,
+                "name": profile.name,
+                "base_url": profile.base_url,
+                "model": profile.model,
+                "temperature": profile.temperature,
+                "api_key": self._decrypt_api_key(profile.api_key_cipher),
+            }
+
     async def update_api_profile(
         self,
         tenant_id: str,

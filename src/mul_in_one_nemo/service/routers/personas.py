@@ -476,3 +476,100 @@ async def update_embedding_config(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
 
 
+class APIHealthResponse(BaseModel):
+    status: str
+    provider_status: int | None = None
+    detail: str | None = None
+
+
+@router.get("/api-profiles/{profile_id}/health", response_model=APIHealthResponse)
+async def healthcheck_api_profile(
+    profile_id: int,
+    tenant_id: str = Query(..., description="Tenant identifier"),
+    repository: PersonaDataRepository = Depends(get_persona_repository),
+) -> APIHealthResponse:
+    """Perform a minimal health check against the configured third-party API.
+
+    Tries common OpenAI-compatible endpoints. Does NOT expose the API key.
+    """
+    record = await repository.get_api_profile_with_key(tenant_id, profile_id)
+    if record is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="API profile not found")
+
+    base_url = str(record["base_url"]).rstrip("/")
+    api_key = record.get("api_key") or None
+    model = record.get("model") or ""
+
+    # Smart path detection: if base_url already ends with /v1, don't add it again
+    base_has_v1 = base_url.endswith("/v1")
+    
+    candidates: list[dict] = []
+    # GET /models (or /v1/models if base doesn't have /v1)
+    models_path = "/models" if base_has_v1 else "/v1/models"
+    candidates.append({
+        "method": "GET",
+        "url": f"{base_url}{models_path}",
+        "headers": {"Authorization": f"Bearer {api_key}"} if api_key else {},
+        "json": None,
+    })
+    # If model provided, try embeddings
+    if model:
+        embed_path = "/embeddings" if base_has_v1 else "/v1/embeddings"
+        candidates.append({
+            "method": "POST",
+            "url": f"{base_url}{embed_path}",
+            "headers": {
+                "Content-Type": "application/json",
+                **({"Authorization": f"Bearer {api_key}"} if api_key else {}),
+            },
+            "json": {"model": model, "input": "ping"},
+        })
+    # fallback: GET base
+    candidates.append({
+        "method": "GET",
+        "url": base_url,
+        "headers": {"Authorization": f"Bearer {api_key}"} if api_key else {},
+        "json": None,
+    })
+
+    timeout_s = 8.0
+
+    # Prefer httpx; fallback to urllib
+    try:
+        import httpx  # type: ignore
+        async with httpx.AsyncClient(timeout=timeout_s) as client:
+            for req in candidates:
+                try:
+                    resp = await client.request(
+                        req["method"],
+                        req["url"],
+                        headers=req["headers"],
+                        json=req["json"],
+                    )  # type: ignore[arg-type]
+                    if 200 <= resp.status_code < 300:
+                        return APIHealthResponse(status="OK", provider_status=resp.status_code)
+                    last_detail = f"HTTP {resp.status_code}: {resp.text[:500]}"
+                except Exception as exc:  # pragma: no cover
+                    last_detail = str(exc)
+        return APIHealthResponse(status="FAILED", provider_status=None, detail=last_detail)
+    except Exception:  # ImportError or runtime issues
+        import urllib.request
+        import json as pyjson
+        for req in candidates:
+            try:
+                data = None
+                if req["json"] is not None:
+                    data = pyjson.dumps(req["json"]).encode("utf-8")
+                request = urllib.request.Request(req["url"], data=data, method=req["method"])  # type: ignore[arg-type]
+                for k, v in (req["headers"] or {}).items():
+                    request.add_header(k, v)
+                with urllib.request.urlopen(request, timeout=timeout_s) as resp:
+                    code = getattr(resp, "status", 200)
+                    if 200 <= code < 300:
+                        return APIHealthResponse(status="OK", provider_status=code)
+                    last_detail = f"HTTP {code}"
+            except Exception as exc:  # pragma: no cover
+                last_detail = str(exc)
+        return APIHealthResponse(status="FAILED", provider_status=None, detail=last_detail)
+
+

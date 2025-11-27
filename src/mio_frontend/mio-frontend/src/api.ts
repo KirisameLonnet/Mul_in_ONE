@@ -23,7 +23,7 @@ export const logout = () => {
   // We might want to keep tenant_id or clear it. Let's keep it for convenience.
 };
 
-const api = axios.create({
+export const api = axios.create({
   baseURL: '/api',
 });
 

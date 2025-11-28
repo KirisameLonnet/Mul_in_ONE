@@ -14,6 +14,8 @@ from nat.plugins.langchain import register as _langchain_register  # noqa: F401
 from .config import Settings
 from .persona import Persona
 from .persona_function import PersonaDialogueFunctionConfig
+from .tools.web_search_tool import WebSearchToolConfig
+from .tools.rag_query_tool import RagQueryToolConfig
 
 
 class MultiAgentRuntime:
@@ -31,6 +33,15 @@ class MultiAgentRuntime:
         self.builder = await self._cm.__aenter__()
         assert self.builder is not None
         await self._register_llm(self.default_llm_name, self._build_nim_config())
+        # Register common tools so the LLM can discover and call them
+        await self.builder.add_function(
+            "web_search_tool",
+            WebSearchToolConfig(),
+        )
+        await self.builder.add_function(
+            "rag_query_tool",
+            RagQueryToolConfig(),
+        )
         for persona in self.personas:
             llm_name = await self._ensure_persona_llm(persona)
             fn = await self.builder.add_function(

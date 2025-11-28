@@ -105,13 +105,14 @@ async def persona_dialogue_function(config: PersonaDialogueFunctionConfig, build
 2. 只基于已有的对话历史回复，不要假设或编造对话中未出现的内容。
 3. 如果用户只是简单问候，简短回应即可，不要过度延伸。
 
-【网页检索使用说明】
-当你需要确认最新信息或不确定事实时，请调用系统提供的“WebSearch”工具（由系统自动按需触发）。
-使用场景包括但不限于：
- - 需要核实最新数据、新闻、版本或价格。
- - 对具体事实不确定（时间、数字、名单、作者、出处）。
- - 用户明确要求“查一下/检索/上网搜/给来源链接”。
-在回答中简要引用返回的链接，并明确哪些结论来自工具检索。
+【可用工具（高优先级）】
+- WebSearch：用于检索最新公开信息（新闻、版本、价格等）。当你对事实不确定或用户要求来源时，主动调用该工具，并在回答中引用返回链接。
+- RagQuery：用于查询你的人物背景与相关资料。遇到涉及你背景、设定或过往信息的提问或讨论时，优先调用该工具获取片段并据此作答。
+
+工具使用原则：
+- 工具调用优先级仅次于系统提示；必要时请主动调用，无需等待用户明确要求。
+- 每轮可按需调用 1-2 次，避免过度调用导致延迟。
+- 在回答中标注引用，区分来自工具的结论与个人观点。
 
 记住：这是群聊，要像真人一样自然互动！"""
 
@@ -119,6 +120,28 @@ async def persona_dialogue_function(config: PersonaDialogueFunctionConfig, build
 
         if config.instructions:
             prompts.append(SystemMessage(content=f"额外指示：{config.instructions}"))
+
+        # 优先级：系统提示 > RAG 背景 > 历史 > 用户消息
+        # 将 RAG 背景前置到历史之前，以提高对话中的引用优先级
+        rag_background_appended = False
+        if user_message and persona_id is not None:
+            try:
+                rag_service = get_rag_service()
+                docs = await rag_service.retrieve_documents(user_message, persona_id, top_k=4)
+                if docs:
+                    rag_background_appended = True
+                    logger.info(f"RAG retrieved {len(docs)} documents for persona {persona_id}")
+                    context_text = "\n\n".join(d.page_content for d in docs)
+                    rag_note = (
+                        "【人物背景（高优先级）】\n"
+                        f"{context_text}\n\n"
+                        "请优先依据以上背景信息作答；如需更多资料，可调用 RagQuery 工具以获取补充片段。"
+                    )
+                    prompts.append(SystemMessage(content=rag_note))
+                else:
+                    logger.info(f"RAG returned no documents for persona {persona_id}")
+            except Exception as e:
+                logger.error(f"RAG retrieval failed for persona {persona_id}: {e}", exc_info=True)
 
         for message in history[-config.memory_window:]:
             speaker = message.get("speaker", "unknown")
@@ -132,25 +155,6 @@ async def persona_dialogue_function(config: PersonaDialogueFunctionConfig, build
 
         # 已移除基于 [[web:...]] 的网页检索触发器；改为通过 NAT 工具调用实现正规检索。
 
-        # RAG: 检索上下文并作为系统提示追加（放在最后，紧贴用户消息）
-        if user_message and persona_id is not None:
-            try:
-                rag_service = get_rag_service()
-                docs = await rag_service.retrieve_documents(user_message, persona_id, top_k=4)
-                if docs:
-                    logger.info(f"RAG retrieved {len(docs)} documents for persona {persona_id}")
-                    context_text = "\n\n".join(d.page_content for d in docs)
-                    rag_note = (
-                        "【检索到的相关资料】\n"
-                        f"{context_text}\n\n"
-                        "请严格基于以上资料回答用户的问题。这些是关于你自己的真实背景信息，务必准确使用。"
-                    )
-                    prompts.append(SystemMessage(content=rag_note))
-                else:
-                    logger.info(f"RAG returned no documents for persona {persona_id}")
-            except Exception as e:
-                # 记录检索失败日志，继续正常对话
-                logger.error(f"RAG retrieval failed for persona {persona_id}: {e}", exc_info=True)
 
         return prompts
 

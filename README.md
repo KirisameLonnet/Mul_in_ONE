@@ -113,7 +113,7 @@ Mul_in_ONE/
 │       │       └── personas.py   # Persona API
 │       ├── runtime.py            # NeMo 运行时封装
 │       ├── tools/                # NAT 工具模块
-│       │   ├── web_search_tool.py# WebSearch 工具 (公开信息检索)
+│       │   ├── web_search_tool.py# WebSearch 工具 (公开信息检索, 自包含实现)
 │       │   └── rag_query_tool.py # RagQuery 工具 (Persona 背景检索)
 │       ├── scheduler.py          # 对话调度器
 │       ├── memory.py             # 对话记忆管理
@@ -243,10 +243,13 @@ npm run dev
 ### 8. 工具优先（NAT）配置与行为
 - **已注册工具**: `WebSearch` 与 `RagQuery`
 - **调用方式**: LLM 在对话过程中按需通过函数调用触发工具,无需用户使用内联触发器
-- **RAG 行为变更**: 移除每轮预注入背景; 改为由 `RagQuery` 工具返回 Top-K 片段并在需要时融合到 Prompt
+- **工具实现**:
+  - `WebSearch`: 自包含实现（内置 DuckDuckGo 搜索和页面抓取）
+  - `RagQuery`: 调用 RAGService 进行向量检索
+- **RAG 行为**: 完全按需检索，无预注入。LLM 通过 `RagQuery` 工具主动获取背景片段
 - **代码位置**:
-  - `src/mul_in_one_nemo/tools/web_search_tool.py`
-  - `src/mul_in_one_nemo/tools/rag_query_tool.py`
+  - `src/mul_in_one_nemo/tools/web_search_tool.py`（完整工具实现）
+  - `src/mul_in_one_nemo/tools/rag_query_tool.py`（工具封装）
   - `src/mul_in_one_nemo/runtime.py`（工具注册与运行时绑定）
 - **详细设计**: 参见 [系统架构设计文档](docs/architecture.md) 的"工具模块"章节
 

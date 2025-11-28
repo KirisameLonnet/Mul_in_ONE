@@ -168,10 +168,18 @@ graph TD
 
     - 知识库摄取（URL/文本）
     - Milvus 向量存储集成
-   - 文档检索（供工具和对话函数调用）
-   16. **工具模块**
-      - **WebSearch 工具** ([src/mul_in_one_nemo/tools/web_search_tool.py](src/mul_in_one_nemo/tools/web_search_tool.py))：检索最新公开信息并返回标题、链接、摘要
-      - **RagQuery 工具** ([src/mul_in_one_nemo/tools/rag_query_tool.py](src/mul_in_one_nemo/tools/rag_query_tool.py))：查询 Persona 背景片段用于回答引用
+    - 文档检索（供 RagQuery 工具调用）
+15. **工具模块**（NAT 标准化实现）
+    - **WebSearch 工具** ([src/mul_in_one_nemo/tools/web_search_tool.py](src/mul_in_one_nemo/tools/web_search_tool.py))
+      - 自包含实现：内置 DuckDuckGo HTML 搜索和页面抓取
+      - 输入：query, top_k, fetch_snippets
+      - 输出：title, url, snippet（可选）
+      - 无外部依赖服务，直接使用 httpx 和正则解析
+    - **RagQuery 工具** ([src/mul_in_one_nemo/tools/rag_query_tool.py](src/mul_in_one_nemo/tools/rag_query_tool.py))
+      - 封装 RAGService.retrieve_documents
+      - 输入：query, persona_id, top_k
+      - 输出：passages（text + source）
+      - LLM 按需调用，无预注入行为
 
     - LangChain 集成（Embeddings, LLM）
     - 数据库配置动态解析
@@ -727,19 +735,25 @@ sequenceDiagram
     participant U as 用户
     participant B as 后端
     participant P as PersonaFunction
+    participant T as NAT Tools
     participant R as RAGService
     participant M as Milvus
     participant L as LLM
   
     U->>B: 发送对话消息
     B->>P: 调用 _build_prompts (async)
-   Note over P: 工具优先：不再每轮预注入，按需调用工具
-   P->>R: retrieve_documents(query, persona_id)（或通过 RagQuery 工具调用）
-    R->>M: 向量相似度检索
-    M->>R: 返回 Top-K 文档
-    R->>P: 格式化文档为上下文
-    P->>P: 注入系统提示 + 检索上下文
-    P->>L: 调用 LLM 生成
+    Note over P: 工具优先：无预注入，LLM 按需调用工具
+    P->>L: 发送 System Prompt + 工具定义 + 历史 + 用户消息
+    L->>L: 决策：是否调用工具？
+    alt LLM 决定调用 RagQuery
+        L->>T: 调用 RagQuery(query, persona_id)
+        T->>R: retrieve_documents
+        R->>M: 向量相似度检索
+        M->>R: 返回 Top-K 文档
+        R->>T: 格式化文档
+        T->>L: 返回工具结果（passages）
+        L->>L: 融合工具结果到回答
+    end
     L->>P: 流式返回响应
     P->>B: 返回生成结果
     B->>U: WebSocket 推送

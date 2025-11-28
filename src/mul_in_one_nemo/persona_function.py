@@ -24,6 +24,7 @@ class PersonaDialogueInput(BaseModel):
     history: List[Dict[str, Any]] = Field(default_factory=list, description="Conversation history")
     user_message: str = Field(default="", description="Latest user message")
     persona_id: Optional[int] = Field(default=None, description="Persona ID used for RAG retrieval context")
+    active_participants: Optional[List[str]] = Field(default=None, description="List of active participants in this conversation (handles)")
 
 
 class PersonaDialogueOutput(BaseModel):
@@ -47,18 +48,29 @@ async def persona_dialogue_function(config: PersonaDialogueFunctionConfig, build
         history = input_data.history
         user_message = input_data.user_message
         persona_id = input_data.persona_id
+        active_participants = input_data.active_participants or []
+
+        # Build participant list info
+        participants_info = ""
+        if active_participants:
+            participants_list = "、".join([f"@{p}" for p in active_participants])
+            participants_info = f"""【当前会话参与者】
+本次对话的参与者有：{participants_list}
+⚠️ 重要：你只能 @ 上述列表中的人，不要 @ 不在此列表中的人！
+
+"""
 
         system_prompt = f"""你是{config.persona_name}。{config.persona_prompt}
 
 你正在参与一个多人自由对话。请注意：
 
-【对话规则】
+{participants_info}【对话规则】
 1. 这是自然的群聊对话，不是一问一答。
 2. 你可以：
    - 回应其他人的观点（不需要被 @ 也可以回应）
    - 提出自己的问题或想法
    - 对感兴趣的话题发表看法
-   - @ 其他人邀请他们参与（格式：@某人）
+   - @ 其他人邀请他们参与（格式：@某人，仅限参与者列表中的人）
    - 对某个观点表示赞同或提出不同看法
 
 【何时发言】
@@ -69,19 +81,29 @@ async def persona_dialogue_function(config: PersonaDialogueFunctionConfig, build
    - 你想补充或纠正某个信息
    - 对话冷场时可以提出新话题
 
-❌ 不需要发言的情况：
+❌ 不要发言的情况：
    - 别人已经说得很完整了
    - 话题完全不在你的专长范围
    - 你没有新的内容可补充
    - 只是为了发言而发言
+   - **用户只说了简单的问候（如"你好"、"晚上好"）时，简短回应即可，不要自己延伸出新话题或提及不存在的上下文**
 
 【发言风格】
 - 保持你的个性特点：{config.persona_prompt}
 - 自然、真实，像真人在聊天
 - 可以简短，不需要每次都长篇大论
 - 可以表达情绪和态度
+- **根据对话实际内容回复，不要凭空编造或提及对话中没有出现过的事情**
 
-【重要】如果下文中提供了「检索到的相关资料」，请优先基于这些资料回答，确保回答准确且符合角色设定。
+【身份与发言身份】
+- 只以你自己的身份发言，绝不假扮他人
+- 不要替他人说话或用他人的第一人称回复
+- 如果需要引用他人的观点，请用第三人称描述
+
+【重要规则】
+1. 如果下文中提供了「检索到的相关资料」，请优先基于这些资料回答，确保回答准确且符合角色设定。
+2. 只基于已有的对话历史回复，不要假设或编造对话中未出现的内容。
+3. 如果用户只是简单问候，简短回应即可，不要过度延伸。
 
 记住：这是群聊，要像真人一样自然互动！"""
 

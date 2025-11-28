@@ -483,6 +483,12 @@ docker logs milvus-standalone
 ### 🚧 进行中 / 计划中
 
 #### 短期计划
+- [ ] **Session 级长期记忆 (Long-term Memory)**
+  - 为每个 Session 绑定独立的 RAG 知识库，该Session中绑定的所有Agent均可访问该知识库
+  - 当对话上下文长度达到阈值时(用户可配置),异步将久远上下文压入 Session-RAG
+  - 压入比例可配置(如压入最早的 1/2、1/3 或自定义比例的历史对话)
+  - Session-RAG 检索优先级最低(低于 Persona 背景 RAG)
+  - 实现对话历史的长期保存和智能召回,突破 memory_window 限制
 - [ ] 消息反馈系统完善(点赞/点踩统计)
 - [ ] 对话导出功能(Markdown/JSON)
 - [ ] Persona 背景支持 URL 摄取
@@ -502,7 +508,6 @@ docker logs milvus-standalone
 - [ ] 语音对话支持
 - [ ] 图片理解和生成
 - [ ] Agent 自定义工具调用
-- [ ] 分布式部署支持
 - [ ] 插件系统
 
 ## 🤝 贡献指南

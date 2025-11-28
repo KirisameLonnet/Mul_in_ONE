@@ -135,6 +135,14 @@ class NemoRuntimeAdapter(RuntimeAdapter):
 
         # Create a mapping from persona name to persona object for easy lookup
         persona_map = {p.name: p for p in persona_settings.personas}
+        
+        # Extract active participants (handles) from session.participants
+        active_participants = []
+        if session.participants:
+            active_participants = [p.handle for p in session.participants]
+        # Always include "user" as a participant
+        if "user" not in active_participants and "用户" not in active_participants:
+            active_participants.insert(0, "user")
 
         # 1. Initialize Memory for the entire turn
         memory = ConversationMemory()
@@ -172,7 +180,8 @@ class NemoRuntimeAdapter(RuntimeAdapter):
 
         last_speaker = message.sender or "user"
         is_first_round = True
-        max_exchanges = 5
+        num_personas = len(persona_settings.personas)
+        max_exchanges = 3  # Allow natural conversation flow
 
         # 3. Start the conversation loop
         for exchange_round in range(max_exchanges):
@@ -192,6 +201,10 @@ class NemoRuntimeAdapter(RuntimeAdapter):
 
             if not speakers:
                 break
+            
+            # Skip if the only speaker is the same as last speaker (prevent self-conversation)
+            if len(speakers) == 1 and speakers[0] == last_speaker and not is_first_round:
+                break
 
             for persona_name in speakers:
                 yield {"event": "agent.start", "data": {"sender": persona_name}}
@@ -201,22 +214,30 @@ class NemoRuntimeAdapter(RuntimeAdapter):
                 persona_id = current_persona.id if current_persona else None
 
                 # Construct payload with appropriate context
-                if is_first_round:
-                    # The first agent(s) respond directly to the user's message
+                # In the first exchange round, ALL selected speakers respond to the user's original message
+                # In subsequent rounds, agents respond to the previous speaker
+                if exchange_round == 0:
+                    # The first round: all agent(s) respond directly to the user's message
                     payload = {
                         "history": memory.as_payload(runtime.settings.memory_window, last_n=1),
                         "user_message": user_message_content,
                         "persona_id": persona_id, # Inject persona_id
+                        "active_participants": active_participants, # Inject active participants
                     }
                 else:
-                    # Subsequent agents respond to the previous speaker in a more contextual way
-                    # The full history is in memory, we frame the last message as an an observation.
+                    # Subsequent rounds: agents respond to the previous speaker in a more contextual way
+                    # Skip if this persona is responding to themselves (shouldn't happen due to check above, but safety)
+                    if persona_name == last_speaker:
+                        continue
+                    
+                    # The full history is in memory, we frame the last message as an observation.
                     last_message = memory.get_last_message()
                     observed_message = f"你刚刚观察到 \"{last_speaker}\" 说: \"{last_message}\"。现在轮到你发言，你可以对此进行评论，或开启新话题。"
                     payload = {
                         "history": memory.as_payload(runtime.settings.memory_window, last_n=1),
                         "user_message": observed_message,
                         "persona_id": persona_id, # Inject persona_id
+                        "active_participants": active_participants, # Inject active participants
                     }
 
                 full_reply = ""
@@ -235,11 +256,12 @@ class NemoRuntimeAdapter(RuntimeAdapter):
                     error_message = f"[Error from {persona_name}: {e}]"
                     yield {"event": "agent.chunk", "data": {"content": error_message}}
                     full_reply = error_message
-                
-                is_first_round = False
 
                 yield {"event": "agent.end", "data": {"sender": persona_name, "content": full_reply}}
                 # agent 回复 recipient 默认为 None（群聊），如需@可在此扩展
                 memory.add(persona_name, full_reply, None)
                 last_speaker = persona_name
                 context_tags.extend(self._extract_tags(full_reply, persona_settings.personas))
+            
+            # Mark first round complete after all speakers in this round have spoken
+            is_first_round = False

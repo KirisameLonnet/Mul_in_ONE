@@ -61,5 +61,5 @@ async def rag_query_tool(config: RagQueryToolConfig, builder):
         input_schema=RagQueryInput,
         single_output_schema=RagQueryOutput,
         stream_output_schema=RagQueryOutput,
-        description="Retrieve persona background passages via RAG for citation in answers.",
+        description="查询当前 Persona 的背景资料与相关知识片段，用于准确回答涉及人物设定、经历或专业知识的问题。返回最相关的文档片段及来源标注。",
     )

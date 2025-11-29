@@ -8,10 +8,13 @@ import uuid
 from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 from typing import Any, AsyncIterator, Dict, List, Set
+import logging
 
 from mul_in_one_nemo.service.models import SessionMessage, SessionRecord
 from mul_in_one_nemo.service.repositories import SessionRepository
 from mul_in_one_nemo.service.runtime_adapter import RuntimeAdapter
+
+logger = logging.getLogger(__name__)
 
 
 class SessionNotFoundError(Exception):
@@ -58,7 +61,9 @@ class SessionRuntime:
             self._worker = None
 
     async def enqueue(self, message: SessionMessage) -> None:
+        logger.info(f"Enqueue called for session {self.record.id}")
         await self._request_queue.put(message)
+        logger.info(f"Message enqueued for session {self.record.id}")
 
     def subscribe(self) -> AsyncIterator[SessionStreamEvent]:
         queue: asyncio.Queue[SessionStreamEvent] = asyncio.Queue()
@@ -74,14 +79,23 @@ class SessionRuntime:
         return _generator()
 
     async def _worker_loop(self) -> None:
+        logger.info(f"Worker loop started for session {self.record.id}")
         while True:
+            logger.info(f"Worker waiting for message in session {self.record.id}")
             message = await self._request_queue.get()
+            logger.info(f"Worker processing a message in session {self.record.id}")
             stream = self.adapter.invoke_stream(self.record, message)
             if inspect.isawaitable(stream):
                 stream = await stream
+            logger.info(f"Stream obtained, starting iteration")
             trackers: Dict[str, Dict[str, Any]] = {}
-            async for raw_event in stream:
-                await self._handle_adapter_event(raw_event, trackers)
+            try:
+                async for raw_event in stream:
+                    logger.debug(f"Worker received event: {raw_event}")
+                    await self._handle_adapter_event(raw_event, trackers)
+            except Exception as e:
+                logger.error(f"Exception during stream iteration: {e}", exc_info=True)
+                raise
 
             # Flush any trackers that did not receive an explicit agent.end
             for sender in list(trackers.keys()):
@@ -192,7 +206,9 @@ class SessionService:
             history_payload.insert(0, {"sender": "user_persona", "content": record.user_persona})
         enriched_message = replace(message, history=history_payload, user_persona=record.user_persona)
         runtime = self._ensure_runtime(record)
+        logger.info(f"enqueue_message: using runtime for session {record.id}; pushing message")
         await runtime.enqueue(enriched_message)
+        logger.info(f"enqueue_message: message pushed to queue for session {record.id}")
 
     async def stream_responses(self, session_id: str) -> AsyncIterator[SessionStreamEvent]:
         record = await self._repository.get(session_id)
@@ -214,7 +230,10 @@ class SessionService:
         if runtime is None:
             runtime = SessionRuntime(record, self._runtime_adapter, self._repository, self._history_limit)
             self._runtimes[record.id] = runtime
+            logger.info(f"_ensure_runtime: created new runtime {id(runtime)} for session {record.id}")
         else:
             runtime.record = record
+            logger.info(f"_ensure_runtime: reusing runtime {id(runtime)} for session {record.id}")
         runtime.start()
+        logger.info(f"_ensure_runtime: runtime {id(runtime)} started; queue id {id(runtime._request_queue)}")
         return runtime

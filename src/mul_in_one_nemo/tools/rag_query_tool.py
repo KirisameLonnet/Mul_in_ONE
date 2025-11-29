@@ -54,7 +54,7 @@ class RagQueryToolConfig(FunctionBaseConfig, name="rag_query_tool"):
     persona_id: Optional[int] = Field(default=None, description="Persona ID for context scoping")
 
 
-@register_function(config_type=RagQueryToolConfig, framework_wrappers=[LLMFrameworkEnum.LANGCHAIN])
+@register_function(config_type=RagQueryToolConfig)
 async def rag_query_tool(config: RagQueryToolConfig, builder):
     """RAG query tool with multi-tenant context injection.
     
@@ -119,5 +119,5 @@ async def rag_query_tool(config: RagQueryToolConfig, builder):
         input_schema=RagQueryInput,
         single_output_schema=RagQueryOutput,
         stream_output_schema=RagQueryOutput,
-        description="查询当前 Persona 的背景资料与相关知识片段，用于准确回答涉及人物设定、经历或专业知识的问题。返回最相关的文档片段及来源标注。",
+        description="查询当前 Persona 的背景资料与相关知识片段,用于准确回答涉及人物设定、经历或专业知识的问题。返回最相关的文档片段及来源标注。",
     )

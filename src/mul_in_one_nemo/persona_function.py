@@ -45,7 +45,7 @@ class PersonaDialogueFunctionConfig(FunctionBaseConfig, name="mul_in_one_persona
     tool_names: List[str] = Field(default_factory=list, description="List of tools available to the persona")
 
 
-@register_function(config_type=PersonaDialogueFunctionConfig, framework_wrappers=[LLMFrameworkEnum.LANGCHAIN])
+@register_function(config_type=PersonaDialogueFunctionConfig)
 async def persona_dialogue_function(config: PersonaDialogueFunctionConfig, builder: Builder):
     llm = await builder.get_llm(config.llm_name, wrapper_type=LLMFrameworkEnum.LANGCHAIN)
     

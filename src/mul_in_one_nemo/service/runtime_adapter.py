@@ -8,6 +8,7 @@ from abc import ABC, abstractmethod
 from collections import defaultdict
 from dataclasses import replace
 from typing import AsyncIterator, Dict, List
+import logging
 
 from mul_in_one_nemo.api_config import apply_api_bindings
 from mul_in_one_nemo.config import Settings
@@ -21,6 +22,8 @@ from mul_in_one_nemo.service.repositories import (
     SQLAlchemyPersonaRepository,
 )
 from mul_in_one_nemo.service.rag_context import set_rag_context, clear_rag_context
+
+logger = logging.getLogger(__name__)
 
 
 class RuntimeAdapter(ABC):
@@ -133,6 +136,8 @@ class NemoRuntimeAdapter(RuntimeAdapter):
         tenant_id = session.tenant_id or "default"
         runtime = await self._ensure_runtime(tenant_id)
         persona_settings = self._persona_cache[tenant_id]
+        logger.info(f"RuntimeAdapter.invoke_stream called for tenant {tenant_id}, session {session.id}")
+        logger.info(f"Persona settings loaded: {len(persona_settings.personas)} personas")
 
         # Set RAG context for this invocation (thread-safe via contextvars)
         # This allows RAG tools to access tenant/persona without LLM exposure
@@ -190,9 +195,11 @@ class NemoRuntimeAdapter(RuntimeAdapter):
             is_first_round = True
             num_personas = len(persona_settings.personas)
             max_exchanges = 3  # Allow natural conversation flow
+            logger.info(f"Starting conversation loop: context_tags={context_tags}, user_selected={user_selected_personas}")
 
             # 3. Start the conversation loop
             for exchange_round in range(max_exchanges):
+                logger.info(f"Exchange round {exchange_round}: last_speaker={last_speaker}, is_first_round={is_first_round}")
                 # If user explicitly selected personas, restrict conversation to only those personas
                 if user_selected_personas:
                     speakers = scheduler.next_turn(
@@ -207,14 +214,18 @@ class NemoRuntimeAdapter(RuntimeAdapter):
                         is_user_message=is_first_round,
                     )
 
+                logger.info(f"Scheduler returned speakers: {speakers}")
                 if not speakers:
+                    logger.info("No speakers selected, breaking loop")
                     break
                 
                 # Skip if the only speaker is the same as last speaker (prevent self-conversation)
                 if len(speakers) == 1 and speakers[0] == last_speaker and not is_first_round:
+                    logger.info(f"Skipping self-conversation: {speakers[0]}")
                     break
 
                 for persona_name in speakers:
+                    logger.info(f"Processing persona: {persona_name}")
                     yield {"event": "agent.start", "data": {"sender": persona_name}}
 
                     # Get persona_id for the current speaker
@@ -255,7 +266,9 @@ class NemoRuntimeAdapter(RuntimeAdapter):
 
                     full_reply = ""
                     try:
+                        logger.info(f"Calling runtime.invoke_stream for {persona_name}")
                         async for chunk in runtime.invoke_stream(persona_name, payload):
+                            logger.debug(f"Received chunk from {persona_name}: {chunk}")
                             text_chunk = ""
                             if isinstance(chunk, str):
                                 text_chunk = chunk
@@ -265,7 +278,9 @@ class NemoRuntimeAdapter(RuntimeAdapter):
                             if text_chunk:
                                 yield {"event": "agent.chunk", "data": {"content": text_chunk}}
                                 full_reply += text_chunk
+                        logger.info(f"Finished streaming from {persona_name}, reply length: {len(full_reply)}")
                     except Exception as e:
+                        logger.error(f"Exception during runtime.invoke_stream for {persona_name}: {e}", exc_info=True)
                         error_message = f"[Error from {persona_name}: {e}]"
                         yield {"event": "agent.chunk", "data": {"content": error_message}}
                         full_reply = error_message

@@ -16,6 +16,9 @@ from pydantic import AnyHttpUrl
 
 from pymilvus import Collection, connections
 
+# Import NAT-based adapter for multi-tenant RAG
+from .rag_adapter import RagAdapter
+
 # A temporary copy of web_utils from NeMo-Agent-Toolkit/scripts
 # This should be refactored into a common utility module.
 # --- Start of web_utils copy ---
@@ -80,18 +83,34 @@ class RAGService:
         chunk_size: int = 500,
         chunk_overlap: int = 50,
         default_top_k: int = 4,
+        use_nat_retriever: bool = True,  # Flag to switch to NAT MilvusRetriever
     ):
         """RAG service.
 
         - Prototype mode: use YAML at `config_path` when `api_config_resolver` is None.
         - Production mode: inject `api_config_resolver(persona_id)->{"model","base_url","api_key","temperature"}`
           to fetch per-tenant/per-persona API settings from DB or SaaS.
+        - NAT mode: When use_nat_retriever=True, uses RagAdapter with NAT's MilvusRetriever
         """
         self.config = self._load_config(config_path) if api_config_resolver is None else None
         self._api_config_resolver = api_config_resolver
         self.chunk_size = chunk_size
         self.chunk_overlap = chunk_overlap
         self.default_top_k = default_top_k
+        self.use_nat_retriever = use_nat_retriever
+        
+        # Initialize NAT adapter if enabled
+        self._rag_adapter: Optional[RagAdapter] = None
+        if use_nat_retriever:
+            # Create adapter with embedder factory that wraps _create_embedder
+            async def embedder_factory(persona_id: int, tenant_id: Optional[str]) -> OpenAIEmbeddings:
+                return await self._create_embedder(persona_id)
+            self._rag_adapter = RagAdapter(
+                embedder_factory=embedder_factory,
+                milvus_uri=DEFAULT_MILVUS_URI,
+            )
+            logger.info("RAGService initialized with NAT MilvusRetriever adapter")
+        
         # In prototype mode, cache embedder/llm; in production, create per request
         if self.config is not None:
             # YAML mode is synchronous initialization
@@ -327,20 +346,34 @@ class RAGService:
     async def retrieve_documents(self, query: str, persona_id: int, tenant_id: str, top_k: int = 4) -> List[Document]:
         """
         Retrieve relevant documents from Milvus for a given query and persona.
+        
+        Uses NAT's MilvusRetriever via RagAdapter when use_nat_retriever=True,
+        otherwise falls back to legacy langchain_milvus.Milvus implementation.
         """
-        logger.info(f"Retrieving documents for query: {query} for persona_id: {persona_id} tenant: {tenant_id}")
+        logger.info(
+            f"Retrieving documents: tenant={tenant_id}, persona={persona_id}, "
+            f"query='{query[:50]}...', top_k={top_k}, nat_mode={self.use_nat_retriever}"
+        )
         
         try:
-            # Create retriever
-            retriever = await self._create_retriever(persona_id, tenant_id, top_k)
+            if self.use_nat_retriever and self._rag_adapter:
+                # Use NAT adapter (modern approach)
+                docs = await self._rag_adapter.search_as_documents(
+                    query=query,
+                    tenant_id=tenant_id,
+                    persona_id=persona_id,
+                    top_k=top_k,
+                )
+            else:
+                # Legacy langchain_milvus approach
+                retriever = await self._create_retriever(persona_id, tenant_id, top_k)
+                docs = await retriever.ainvoke(query)
             
-            # Retrieve documents (using ainvoke instead of deprecated aget_relevant_documents)
-            docs = await retriever.ainvoke(query)
             logger.info(f"Retrieved {len(docs)} documents")
-            
             return docs
+            
         except Exception as e:
-            logger.error(f"Failed to retrieve documents: {e}")
+            logger.error(f"Failed to retrieve documents: {e}", exc_info=True)
             raise
 
     def _format_docs(self, docs: List[Document]) -> str:

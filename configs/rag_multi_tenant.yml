@@ -1,0 +1,41 @@
+# Multi-tenant RAG configuration using NAT official components
+# This config defines retrievers, tools, embedders, and workflow for dynamic multi-tenant RAG
+
+retrievers:
+  tenant_milvus:
+    _type: milvus_retriever
+    uri: http://localhost:19530
+    embedding_model: milvus_embedder
+    # Note: collection_name and top_k will be bound at runtime per tenant/persona
+    # The adapter will create per-request MilvusRetriever instances
+
+functions:
+  rag_retriever_tool:
+    _type: nat_retriever
+    retriever: tenant_milvus
+    topic: persona background knowledge and context
+    description: |
+      Retrieve relevant background knowledge and context passages for the current persona.
+      Use this tool when you need to access persona-specific information, settings, 
+      experiences, or domain knowledge to answer questions accurately.
+
+llms:
+  nim_llm:
+    _type: nim
+    model_name: meta/llama-3.3-70b-instruct
+    temperature: 0
+    max_tokens: 4096
+    top_p: 1
+
+embedders:
+  milvus_embedder:
+    _type: nim
+    model_name: nvidia/nv-embedqa-e5-v5
+    truncate: END
+
+workflow:
+  _type: react_agent
+  tool_names:
+   - rag_retriever_tool
+  verbose: true
+  llm_name: nim_llm

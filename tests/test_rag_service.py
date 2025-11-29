@@ -47,7 +47,8 @@ def mock_milvus_vector_store():
 @pytest.fixture
 def rag_service_instance(mock_api_config_path: Path) -> RAGService:
     """Fixture to provide an RAGService instance with a mocked config path."""
-    return RAGService(config_path=mock_api_config_path)
+    # Disable NAT retriever for tests since we're mocking Milvus
+    return RAGService(config_path=mock_api_config_path, use_nat_retriever=False)
 
 
 @pytest.mark.asyncio
@@ -59,6 +60,7 @@ async def test_ingest_url_success(
     """Test successful URL ingestion."""
     test_url = AnyHttpUrl("http://example.com")
     persona_id = 123
+    tenant_id = "test_tenant"
     
     with patch("mul_in_one_nemo.service.rag_service.scrape") as mock_scrape, \
          patch("mul_in_one_nemo.service.rag_service.OpenAIEmbeddings.aembed_documents") as mock_aembed: # Changed patch target
@@ -67,11 +69,11 @@ async def test_ingest_url_success(
 
         # Ensure CACHE_BASE_PATH is temporary
         with patch("mul_in_one_nemo.service.rag_service.CACHE_BASE_PATH", str(tmp_path / "rag_cache")):
-            result = await rag_service_instance.ingest_url(test_url, persona_id)
+            result = await rag_service_instance.ingest_url(test_url, persona_id, tenant_id)
 
             assert result["status"] == "success"
             assert result["documents_added"] == 1 # Changed from 2 to 1
-            assert result["collection_name"] == f"persona_{persona_id}_rag"
+            assert result["collection_name"] == f"{tenant_id}_persona_{persona_id}_rag"
 
             mock_scrape.assert_called_once_with([str(test_url)])
             mock_aembed.assert_called_once() # Verify embedder was called
@@ -90,13 +92,14 @@ async def test_ingest_url_scrape_failure(
     """Test URL ingestion failure due to scraping error."""
     test_url = AnyHttpUrl("http://fail.com")
     persona_id = 456
+    tenant_id = "test_tenant"
 
     with patch("mul_in_one_nemo.service.rag_service.scrape") as mock_scrape, \
          patch("mul_in_one_nemo.service.rag_service.OpenAIEmbeddings.aembed_documents") as mock_aembed: # Changed patch target
         mock_scrape.return_value = ([], [{"url": str(test_url), "error": "mock network error"}])
         
         with pytest.raises(RuntimeError, match="Failed to scrape URL"):
-            await rag_service_instance.ingest_url(test_url, persona_id)
+            await rag_service_instance.ingest_url(test_url, persona_id, tenant_id)
         
         mock_scrape.assert_called_once_with([str(test_url)])
         mock_aembed.assert_not_called() # Embedder should not be called on scrape failure

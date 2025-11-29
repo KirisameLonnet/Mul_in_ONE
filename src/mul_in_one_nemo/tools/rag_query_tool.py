@@ -2,12 +2,15 @@
 
 Allows agents to retrieve background passages for a persona via RAG service.
 Read-only; returns passages and basic metadata for citation.
+
+Security: tenant_id and persona_id are injected from config/context at runtime,
+not exposed to LLM to prevent token waste and security issues (hallucination risks).
 """
 
 from __future__ import annotations
 
 import logging
-from typing import List, AsyncGenerator
+from typing import List, AsyncGenerator, Optional
 
 from pydantic import BaseModel, Field
 
@@ -17,13 +20,18 @@ from nat.cli.register_workflow import register_function
 from nat.data_models.function import FunctionBaseConfig
 
 from mul_in_one_nemo.service.rag_dependencies import get_rag_service
+from mul_in_one_nemo.service.rag_context import get_rag_context
 
 logger = logging.getLogger(__name__)
 
 
 class RagQueryInput(BaseModel):
+    """Input schema exposed to LLM - only contains query and top_k.
+    
+    Security: persona_id and tenant_id are NOT exposed to LLM.
+    They are injected from the config/context at runtime.
+    """
     query: str = Field(..., description="User/query text to retrieve relevant background")
-    persona_id: int = Field(..., ge=1, description="Persona ID for context scoping")
     top_k: int = Field(default=4, ge=1, le=10, description="Max number of passages to return")
 
 
@@ -37,19 +45,69 @@ class RagQueryOutput(BaseModel):
 
 
 class RagQueryToolConfig(FunctionBaseConfig, name="rag_query_tool"):
-    pass
+    """Configuration for RAG query tool with context injection.
+    
+    These fields are set at tool registration time or updated during
+    session initialization to provide tenant/persona context.
+    """
+    tenant_id: Optional[str] = Field(default="default", description="Tenant ID for multi-tenant isolation")
+    persona_id: Optional[int] = Field(default=None, description="Persona ID for context scoping")
 
 
 @register_function(config_type=RagQueryToolConfig, framework_wrappers=[LLMFrameworkEnum.LANGCHAIN])
 async def rag_query_tool(config: RagQueryToolConfig, builder):
+    """RAG query tool with multi-tenant context injection.
+    
+    Context (tenant_id, persona_id) is provided via config, not from LLM input.
+    This ensures:
+    1. No token waste asking LLM to provide system metadata
+    2. No security risk of LLM hallucinating wrong tenant/persona IDs
+    3. Proper tenant isolation at the infrastructure level
+    """
+    
     async def _single(input_data: RagQueryInput) -> RagQueryOutput:
         try:
+            # Try config first, then fall back to context variable
+            tenant_id = config.tenant_id
+            persona_id = config.persona_id
+            
+            # If not in config, try getting from context (set by runtime adapter)
+            if tenant_id is None or persona_id is None:
+                ctx_tenant, ctx_persona = get_rag_context()
+                tenant_id = tenant_id or ctx_tenant or "default"
+                persona_id = persona_id or ctx_persona
+            
+            if persona_id is None:
+                logger.warning("RagQueryTool called without persona_id in config or context")
+                return RagQueryOutput(passages=[])
+            
+            logger.info(
+                f"RAG query: tenant={tenant_id}, persona={persona_id}, "
+                f"query='{input_data.query[:50]}...', top_k={input_data.top_k}"
+            )
+            
             rag_service = get_rag_service()
-            docs = await rag_service.retrieve_documents(input_data.query, input_data.persona_id, top_k=input_data.top_k)
-            out = [RagPassage(text=getattr(d, "page_content", ""), source=(getattr(d, "metadata", {}) or {}).get("source")) for d in docs]
+            # Note: retrieve_documents signature now requires tenant_id
+            docs = await rag_service.retrieve_documents(
+                query=input_data.query,
+                persona_id=persona_id,
+                tenant_id=tenant_id,
+                top_k=input_data.top_k
+            )
+            
+            out = [
+                RagPassage(
+                    text=getattr(d, "page_content", ""),
+                    source=(getattr(d, "metadata", {}) or {}).get("source")
+                )
+                for d in docs
+            ]
+            
+            logger.info(f"RAG query returned {len(out)} passages")
             return RagQueryOutput(passages=out)
+            
         except Exception as e:
-            logger.error("RagQueryTool failed: %s", e)
+            logger.error(f"RagQueryTool failed: {e}", exc_info=True)
             return RagQueryOutput(passages=[])
 
     async def _stream(input_data: RagQueryInput) -> AsyncGenerator[RagQueryOutput, None]:

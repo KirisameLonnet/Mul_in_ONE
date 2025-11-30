@@ -1,4 +1,6 @@
-# LLM 回复速度影响因素分析
+# LLM Response Speed Analysis / LLM 回复速度影响因素分析
+
+> **English Summary**: This document provides a comprehensive analysis of factors affecting LLM response speed in the Mio multi-agent platform. It covers the complete request-response pipeline from user message to final reply, identifies latency bottlenecks, and provides optimization recommendations. Key findings: LLM API calls account for 60-80% of latency, WebSearch tool can add 500-5000ms, and database operations add 20-100ms.
 
 本文档系统性地分析了 Mio 平台中影响 LLM 回复速度的各个过程，从用户发送消息到收到完整回复的全链路延迟拆解。
 

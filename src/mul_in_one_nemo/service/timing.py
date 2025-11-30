@@ -43,7 +43,21 @@ class TimingRecord:
     end_time: float
     metrics: Dict[str, Any] = field(default_factory=dict)
     parent: Optional[str] = None
-    children: List["TimingRecord"] = field(default_factory=list)
+
+
+class _DummyContext:
+    """Dummy context used when timing is disabled."""
+    def add_metric(self, key: str, value: Any) -> None:
+        pass
+
+
+class _MetricsContext:
+    """Context object for adding custom metrics during timing."""
+    def __init__(self) -> None:
+        self.metrics: Dict[str, Any] = {}
+    
+    def add_metric(self, key: str, value: Any) -> None:
+        self.metrics[key] = value
 
 
 class TimingRegistry:
@@ -127,21 +141,10 @@ async def TimingContext(name: str, parent: Optional[str] = None):
             ctx.add_metric("output_tokens", count_tokens(result))
     """
     if not TIMING_ENABLED:
-        # Yield a dummy context
-        class DummyContext:
-            def add_metric(self, key: str, value: Any) -> None:
-                pass
-        yield DummyContext()
+        yield _DummyContext()
         return
     
-    class Context:
-        def __init__(self):
-            self.metrics: Dict[str, Any] = {}
-        
-        def add_metric(self, key: str, value: Any) -> None:
-            self.metrics[key] = value
-    
-    ctx = Context()
+    ctx = _MetricsContext()
     start = time.perf_counter()
     try:
         yield ctx
@@ -166,20 +169,10 @@ def sync_timing_context(name: str, parent: Optional[str] = None):
     Same as TimingContext but for synchronous code.
     """
     if not TIMING_ENABLED:
-        class DummyContext:
-            def add_metric(self, key: str, value: Any) -> None:
-                pass
-        yield DummyContext()
+        yield _DummyContext()
         return
     
-    class Context:
-        def __init__(self):
-            self.metrics: Dict[str, Any] = {}
-        
-        def add_metric(self, key: str, value: Any) -> None:
-            self.metrics[key] = value
-    
-    ctx = Context()
+    ctx = _MetricsContext()
     start = time.perf_counter()
     try:
         yield ctx

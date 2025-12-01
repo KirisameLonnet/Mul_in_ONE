@@ -169,7 +169,7 @@ const columns = [
   { name: 'model', label: 'Model', field: 'model' },
   { name: 'api_key', label: 'API Key (Preview)', field: 'api_key_preview' },
   { name: 'temperature', label: 'Temperature', field: 'temperature' },
-  { name: 'actions', label: 'Actions', field: 'actions', align: 'right' }
+  { name: 'actions', label: 'Actions', field: 'actions', align: 'right' as const }
 ]
 
 const loadProfiles = async () => {

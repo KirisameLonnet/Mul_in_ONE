@@ -149,20 +149,6 @@ const handleCreate = async () => {
   }
 };
 
-onMounted(loadData);
-</script>
-
-<style scoped>
-.manager-container {
-  padding: 1rem;
-  height: 100%;
-  overflow-y: auto;
-}
-
-.header {
-  margin-bottom: 1.5rem;
-}
-
 const handleRefreshRAG = async (personaId: number) => {
   refreshingPersonaId.value = personaId;
   try {
@@ -190,6 +176,20 @@ const handleRefreshRAG = async (personaId: number) => {
     refreshingPersonaId.value = null;
   }
 };
+
+onMounted(loadData);
+</script>
+
+<style scoped>
+.manager-container {
+  padding: 1rem;
+  height: 100%;
+  overflow-y: auto;
+}
+
+.header {
+  margin-bottom: 1.5rem;
+}
 
 .content-wrapper {
   display: grid;

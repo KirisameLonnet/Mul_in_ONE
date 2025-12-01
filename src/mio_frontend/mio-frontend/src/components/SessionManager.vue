@@ -85,7 +85,7 @@ import {
   type Persona,
   authState 
 } from '../api';
-import { useWebSocket, createChatWebSocketUrl, type WebSocketMessage } from '../websocket';
+import { createChatWebSocketUrl, type WebSocketMessage } from '../websocket';
 
 const sessions = ref<Session[]>([]);
 const messages = ref<Message[]>([]);
@@ -97,12 +97,8 @@ const loading = ref(false);
 const newMessage = ref('');
 const messagesContainer = ref<HTMLElement | null>(null);
 
-// WebSocket integration
-const { client: wsClient, connect: connectWs, close: closeWs } = useWebSocket({
-  url: '', // Will be set in enterSession
-  reconnect: true,
-  onMessage: handleWsMessage
-});
+// Manual WS management since the composable is a bit rigid for dynamic URLs
+let activeWs: WebSocket | null = null;
 
 function handleWsMessage(msg: WebSocketMessage) {
   const { event, data } = msg;
@@ -202,8 +198,8 @@ const enterSession = async (id: string) => {
   // OR (better) just use the client.close() and create a new one.
   
   // Let's use a ref for the client to allow replacement
-  if (wsClient.value) {
-    wsClient.value.close();
+  if (activeWs) {
+    activeWs.close();
   }
   
   // Re-initialize connection with new URL
@@ -211,9 +207,6 @@ const enterSession = async (id: string) => {
   // We will implement a simple connect function here that creates a new WebSocket.
   initWebSocket(id);
 };
-
-// Manual WS management since the composable is a bit rigid for dynamic URLs
-let activeWs: WebSocket | null = null;
 
 const initWebSocket = (sessionId: string) => {
   if (activeWs) {

@@ -31,6 +31,7 @@ src/mul_in_one_nemo/service/rag_service.py
 src/mul_in_one_nemo/service/repositories.py
 src/mul_in_one_nemo/service/runtime_adapter.py
 src/mul_in_one_nemo/service/session_service.py
+src/mul_in_one_nemo/service/timing.py
 src/mul_in_one_nemo/service/routers/debug.py
 src/mul_in_one_nemo/service/routers/personas.py
 src/mul_in_one_nemo/service/routers/sessions.py

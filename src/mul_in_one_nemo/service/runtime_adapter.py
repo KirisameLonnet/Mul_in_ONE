@@ -75,6 +75,40 @@ class NemoRuntimeAdapter(RuntimeAdapter):
         self._persona_cache: Dict[str, PersonaSettings] = {}
         self._locks: Dict[str, asyncio.Lock] = defaultdict(asyncio.Lock)
 
+    # ---------- Similarity utilities ----------
+    @staticmethod
+    def _tokenize_for_similarity(text: str) -> Dict[str, int]:
+        """Lightweight tokenizer for similarity checks.
+
+        - Latin: word-like tokens [A-Za-z0-9_]+
+        - CJK: single Han character tokens
+        """
+        if not text:
+            return {}
+        lowered = text.lower()
+        tokens = re.findall(r"[A-Za-z0-9_]+|[\u4e00-\u9fff]", lowered)
+        counts: Dict[str, int] = {}
+        for t in tokens:
+            counts[t] = counts.get(t, 0) + 1
+        return counts
+
+    @staticmethod
+    def _cosine_similarity(vec_a: Dict[str, int], vec_b: Dict[str, int]) -> float:
+        if not vec_a or not vec_b:
+            return 0.0
+        # dot product
+        keys = vec_a.keys() & vec_b.keys()
+        dot = sum(vec_a[k] * vec_b[k] for k in keys)
+        if dot == 0:
+            return 0.0
+        # norms
+        import math
+        na = math.sqrt(sum(v * v for v in vec_a.values()))
+        nb = math.sqrt(sum(v * v for v in vec_b.values()))
+        if na == 0 or nb == 0:
+            return 0.0
+        return dot / (na * nb)
+
     @classmethod
     def _filter_special_tokens(cls, text: str) -> str:
         """Remove special tokens from LLM output.
@@ -260,12 +294,25 @@ class NemoRuntimeAdapter(RuntimeAdapter):
             num_personas = len(persona_settings.personas)
             # Use configurable max exchanges per user message
             max_exchanges = max(1, getattr(self._settings, "max_exchanges_per_turn", 8))
+
+            # Smart stop policy state
+            from collections import deque
+            heat_window = deque(maxlen=max(1, getattr(self._settings, "stop_patience", 2)))
+            seen_speakers: set[str] = set()
+            seen_mentions: set[str] = set(context_tags)
+            prev_round_vec: Dict[str, int] | None = None
+            high_sim_streak = 0
+            heat_threshold = float(getattr(self._settings, "stop_heat_threshold", 0.6))
+            sim_threshold = float(getattr(self._settings, "stop_similarity_threshold", 0.9))
             logger.info(f"Starting conversation loop: context_tags={context_tags}, user_selected={user_selected_personas}")
 
             # 3. Start the conversation loop
             for exchange_round in range(max_exchanges):
                 logger.info(f"Exchange round {exchange_round}: last_speaker={last_speaker}, is_first_round={is_first_round}")
                 # If user explicitly selected personas, restrict conversation to only those personas
+                round_text_total = ""
+                round_speakers: list[str] = []
+
                 if user_selected_personas:
                     speakers = scheduler.next_turn(
                         context_tags=context_tags if exchange_round == 0 else user_selected_personas,
@@ -293,6 +340,7 @@ class NemoRuntimeAdapter(RuntimeAdapter):
                 for persona_name in speakers:
                     logger.info(f"Processing persona: {persona_name}")
                     yield {"event": "agent.start", "data": {"sender": persona_name}}
+                    round_speakers.append(persona_name)
 
                     # Get persona_id for the current speaker
                     current_persona = persona_map.get(persona_name)
@@ -376,8 +424,52 @@ class NemoRuntimeAdapter(RuntimeAdapter):
                     # agent 回复 recipient 默认为 None（群聊），如需@可在此扩展
                     memory.add(persona_name, full_reply, None)
                     last_speaker = persona_name
-                    context_tags.extend(self._extract_tags(full_reply, persona_settings.personas))
+                    round_text_total += (full_reply or "")
+                    # Track mentions for heat computation
+                    new_tags = self._extract_tags(full_reply, persona_settings.personas)
+                    context_tags.extend(new_tags)
+                    # dedupe context_tags list size by converting to set then list to prevent unbounded growth
+                    if len(context_tags) > 32:
+                        context_tags = list(dict.fromkeys(context_tags))
                 
+                # ---- Smart stop policy evaluation for this round ----
+                # Compute heat score: length + new participants + question + new mentions
+                length_score = min(len(round_text_total) / 80.0, 1.0)
+                new_participants = [sp for sp in round_speakers if sp not in seen_speakers]
+                new_part_ratio = (len(new_participants) / max(1, num_personas))
+                has_question = ("?" in round_text_total) or ("？" in round_text_total)
+                # mentions
+                round_mentions = self._extract_tags(round_text_total, persona_settings.personas)
+                new_mentions = [m for m in round_mentions if m not in seen_mentions]
+                new_mention_bonus = min(0.2, 0.1 * len(new_mentions))
+                heat = 0.6 * length_score + 0.2 * new_part_ratio + (0.2 if has_question else 0.0) + new_mention_bonus
+                heat = max(0.0, min(1.0, heat))
+
+                # Update windows/sets
+                heat_window.append(heat)
+                seen_speakers.update(round_speakers)
+                seen_mentions.update(round_mentions)
+
+                # Redundancy via cosine similarity on lightweight tokens
+                curr_vec = self._tokenize_for_similarity(round_text_total)
+                sim = self._cosine_similarity(prev_round_vec or {}, curr_vec)
+                if sim >= sim_threshold and not has_question and not new_mentions:
+                    high_sim_streak += 1
+                else:
+                    high_sim_streak = 0
+                prev_round_vec = curr_vec
+
+                # Decide stop: redundancy streak or low heat average over patience
+                if len(heat_window) >= heat_window.maxlen:
+                    avg_heat = sum(heat_window) / len(heat_window)
+                    logger.info(f"Round heat={heat:.3f}, avg_last_{heat_window.maxlen}={avg_heat:.3f}, sim={sim:.3f}, streak={high_sim_streak}")
+                    if high_sim_streak >= 2:
+                        logger.info("Stopping due to high similarity streak without new info")
+                        break
+                    if avg_heat < heat_threshold:
+                        logger.info("Stopping due to low conversation heat")
+                        break
+
                 # Mark first round complete after all speakers in this round have spoken
                 is_first_round = False
         

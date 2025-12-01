@@ -36,6 +36,10 @@ class Settings:
     temperature: float = 0.4
     # Max conversation exchanges per user message (rounds)
     max_exchanges_per_turn: int = 8
+    # Smart stop policy
+    stop_patience: int = 2  # 最近 K 轮
+    stop_heat_threshold: float = 0.6  # 活跃度阈值
+    stop_similarity_threshold: float = 0.9  # 冗余相似度阈值
 
     # Legacy fields for backward compatibility (optional)
     persona_file: Path | None = None
@@ -101,6 +105,22 @@ class Settings:
         
         max_exchanges_str = os.environ.get("MUL_IN_ONE_MAX_EXCHANGES")
         max_exchanges = int(max_exchanges_str) if max_exchanges_str else 8
+
+        # Smart stop policy env
+        stop_patience_str = os.environ.get("MUL_IN_ONE_STOP_PATIENCE")
+        stop_patience = int(stop_patience_str) if stop_patience_str else 2
+
+        stop_heat_str = os.environ.get("MUL_IN_ONE_STOP_HEAT_THRESH")
+        try:
+            stop_heat = float(stop_heat_str) if stop_heat_str else 0.6
+        except ValueError:
+            stop_heat = 0.6
+
+        stop_sim_str = os.environ.get("MUL_IN_ONE_STOP_SIM_THRESH")
+        try:
+            stop_sim = float(stop_sim_str) if stop_sim_str else 0.9
+        except ValueError:
+            stop_sim = 0.9
         
         redis_url = os.environ.get("REDIS_URL")
         encryption_key = os.environ.get("MUL_IN_ONE_ENCRYPTION_KEY", "")
@@ -115,6 +135,9 @@ class Settings:
             memory_window=memory_window,
             temperature=temperature,
             max_exchanges_per_turn=max_exchanges,
+            stop_patience=stop_patience,
+            stop_heat_threshold=stop_heat,
+            stop_similarity_threshold=stop_sim,
             api_config_path=api_config_path,
             api_configuration=api_configuration,
             redis_url=redis_url,

@@ -34,6 +34,8 @@ class Settings:
     max_agents_per_turn: int = 2
     memory_window: int = 8
     temperature: float = 0.4
+    # Max conversation exchanges per user message (rounds)
+    max_exchanges_per_turn: int = 8
 
     # Legacy fields for backward compatibility (optional)
     persona_file: Path | None = None
@@ -97,6 +99,9 @@ class Settings:
         memory_window_str = os.environ.get("MUL_IN_ONE_MEMORY_WINDOW")
         memory_window = int(memory_window_str) if memory_window_str else 8
         
+        max_exchanges_str = os.environ.get("MUL_IN_ONE_MAX_EXCHANGES")
+        max_exchanges = int(max_exchanges_str) if max_exchanges_str else 8
+        
         redis_url = os.environ.get("REDIS_URL")
         encryption_key = os.environ.get("MUL_IN_ONE_ENCRYPTION_KEY", "")
         
@@ -109,6 +114,7 @@ class Settings:
             max_agents_per_turn=max_agents,
             memory_window=memory_window,
             temperature=temperature,
+            max_exchanges_per_turn=max_exchanges,
             api_config_path=api_config_path,
             api_configuration=api_configuration,
             redis_url=redis_url,

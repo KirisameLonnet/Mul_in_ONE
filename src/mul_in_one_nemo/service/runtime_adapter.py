@@ -98,13 +98,56 @@ class NemoRuntimeAdapter(RuntimeAdapter):
 
     @staticmethod
     def _extract_tags(user_text: str, personas: list[Persona]) -> List[str]:
-        lowered = user_text.lower()
-        tags = []
-        for persona in personas:
-            handle = persona.handle.lower()
-            if persona.name.lower() in lowered or handle in lowered:
-                tags.append(persona.name)
-        return tags
+        """Extract mentioned persona names from user text, preserving order.
+
+        Priority:
+        1) Explicit @handle mentions (order preserved)
+        2) Fallback substring match for handle/name (order by first occurrence)
+        """
+        text = user_text or ""
+        lowered = text.lower()
+
+        # Build lookup maps
+        handle_to_name = {p.handle.lower(): p.name for p in personas}
+        name_set = {p.name for p in personas}
+
+        # 1) Parse explicit @mentions (Latin/CJK word-ish handles)
+        # Capture sequences after @, allowing letters, numbers, _, -, and CJK
+        mention_tokens = re.findall(r"@([\w\-\u4e00-\u9fff]+)", text)
+        ordered_names: List[str] = []
+        seen: set[str] = set()
+        for token in mention_tokens:
+            key = token.lower()
+            if key in handle_to_name:
+                name = handle_to_name[key]
+                if name not in seen:
+                    ordered_names.append(name)
+                    seen.add(name)
+            else:
+                # Try direct name match (case-insensitive)
+                for p in personas:
+                    if p.name.lower() == key and p.name not in seen:
+                        ordered_names.append(p.name)
+                        seen.add(p.name)
+                        break
+
+        if ordered_names:
+            return ordered_names
+
+        # 2) Fallback: substring heuristic (keep order by first occurrence index)
+        candidates: List[tuple[int, str]] = []
+        for p in personas:
+            idx = -1
+            h = p.handle.lower()
+            n = p.name.lower()
+            if h and h in lowered:
+                idx = lowered.find(h)
+            elif n and n in lowered:
+                idx = lowered.find(n)
+            if idx >= 0:
+                candidates.append((idx, p.name))
+        candidates.sort(key=lambda x: x[0])
+        return [name for _, name in candidates]
 
     async def _ensure_runtime(self, username: str) -> MultiAgentRuntime:
         runtime = self._runtimes.get(username)
@@ -215,7 +258,8 @@ class NemoRuntimeAdapter(RuntimeAdapter):
             last_speaker = message.sender or "user"
             is_first_round = True
             num_personas = len(persona_settings.personas)
-            max_exchanges = 3  # Allow natural conversation flow
+            # Use configurable max exchanges per user message
+            max_exchanges = max(1, getattr(self._settings, "max_exchanges_per_turn", 8))
             logger.info(f"Starting conversation loop: context_tags={context_tags}, user_selected={user_selected_personas}")
 
             # 3. Start the conversation loop
@@ -242,8 +286,9 @@ class NemoRuntimeAdapter(RuntimeAdapter):
                 
                 # Skip if the only speaker is the same as last speaker (prevent self-conversation)
                 if len(speakers) == 1 and speakers[0] == last_speaker and not is_first_round:
-                    logger.info(f"Skipping self-conversation: {speakers[0]}")
-                    break
+                    logger.info(f"Skipping self-conversation this round: {speakers[0]}")
+                    # Try next round instead of terminating the conversation
+                    continue
 
                 for persona_name in speakers:
                     logger.info(f"Processing persona: {persona_name}")

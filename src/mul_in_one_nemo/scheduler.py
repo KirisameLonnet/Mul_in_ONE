@@ -56,25 +56,28 @@ class TurnScheduler:
         """
         context_tags = context_tags or []
         
-        # ===== 第一优先级：处理被 @ 的 Agent（绝对优先） =====
-        mentioned_speakers = []
-        for persona in self.personas.values():
-            since_last = self.turn - persona.last_turn
-            # 被 @ 且不在冷却期的 Agent 必须立即回复
-            if persona.name in context_tags and since_last > 0:
-                mentioned_speakers.append(persona.name)
-        
-        if mentioned_speakers:
-            # 更新状态并直接返回被提及者（跳过后续计算）
-            for persona in self.personas.values():
-                if persona.name in mentioned_speakers:
-                    persona.last_turn = self.turn
-                    persona.consecutive_speaks += 1
-                else:
-                    persona.consecutive_speaks = 0
-            self.silence_count = 0
-            self.turn += 1
-            return mentioned_speakers
+        # ===== 第一优先级：处理被 @ 的 Agent（绝对优先，保持用户提及顺序） =====
+        if context_tags:
+            chosen_by_mention: List[str] = []
+            for name in context_tags:
+                persona = self.personas.get(name)
+                if not persona:
+                    continue
+                since_last = self.turn - persona.last_turn
+                if since_last > 0:
+                    chosen_by_mention.append(name)
+                if len(chosen_by_mention) >= self.max_agents:
+                    break
+            if chosen_by_mention:
+                for persona in self.personas.values():
+                    if persona.name in chosen_by_mention:
+                        persona.last_turn = self.turn
+                        persona.consecutive_speaks += 1
+                    else:
+                        persona.consecutive_speaks = 0
+                self.silence_count = 0
+                self.turn += 1
+                return chosen_by_mention
         
         # ===== 第二优先级：主动发言计算（无人被 @ 时） =====
         candidates: List[tuple[str, float]] = []

@@ -292,10 +292,14 @@ class NemoRuntimeAdapter(RuntimeAdapter):
                         }
 
                     full_reply = ""
+                    chunk_count = 0
                     try:
                         logger.info(f"Calling runtime.invoke_stream for {persona_name}")
+                        logger.info(f"Payload: history_len={len(payload.get('history', []))}, user_message_preview={payload.get('user_message', '')[:100]}")
                         async for chunk in runtime.invoke_stream(persona_name, payload):
-                            logger.debug(f"Received chunk from {persona_name}: {chunk}")
+                            chunk_count += 1
+                            if chunk_count <= 5:  # Log first 5 chunks
+                                logger.info(f"Received chunk #{chunk_count} from {persona_name}: type={type(chunk)}, preview={repr(chunk)[:100]}")
                             text_chunk = ""
                             if isinstance(chunk, str):
                                 text_chunk = chunk
@@ -303,12 +307,20 @@ class NemoRuntimeAdapter(RuntimeAdapter):
                                 text_chunk = getattr(chunk, "response")
 
                             if text_chunk:
+                                before_filter = text_chunk
                                 # Filter out special tokens that some LLMs (e.g., Qwen) may output
                                 text_chunk = self._filter_special_tokens(text_chunk)
+                                if before_filter != text_chunk:
+                                    logger.info(f"Filtered special tokens: before={repr(before_filter[:50])}, after={repr(text_chunk[:50])}")
                                 if text_chunk:  # Only yield if there's content after filtering
                                     yield {"event": "agent.chunk", "data": {"content": text_chunk}}
                                     full_reply += text_chunk
-                        logger.info(f"Finished streaming from {persona_name}, reply length: {len(full_reply)}")
+                                else:
+                                    logger.warning(f"text_chunk was filtered to empty string from: {repr(before_filter[:100])}")
+                            else:
+                                if chunk_count <= 5:
+                                    logger.info(f"No text_chunk extracted from chunk #{chunk_count}")
+                        logger.info(f"Finished streaming from {persona_name}, received {chunk_count} chunks, reply length: {len(full_reply)}")
                     except Exception as e:
                         logger.error(f"Exception during runtime.invoke_stream for {persona_name}: {e}", exc_info=True)
                         error_message = f"[Error from {persona_name}: {e}]"

@@ -14,6 +14,7 @@ from langchain_core.documents import Document
 from langchain_core.prompts import PromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 from pydantic import AnyHttpUrl
+from langchain_core.embeddings import Embeddings
 
 from pymilvus import Collection, connections, utility, FieldSchema, CollectionSchema, DataType
 
@@ -151,7 +152,7 @@ class RAGService:
                 return api
         raise ValueError(f"Default API '{default_api_name}' not found in api_configuration.yaml")
 
-    async def _create_embedder(self, persona_id: Optional[int] = None) -> OpenAIEmbeddings:
+    async def _create_embedder(self, persona_id: Optional[int] = None) -> Embeddings:
         """Create embedder from tenant's global embedding config."""
         # Always use tenant's global embedding API profile
         if self._api_config_resolver is None:
@@ -162,23 +163,59 @@ class RAGService:
             api_config = await self._api_config_resolver(persona_id, use_embedding=True)
         
         logger.info(f"Creating embedder for model: {api_config.get('model')}")
-        return OpenAIEmbeddings(
-            model=api_config.get("model"),
-            openai_api_base=api_config.get("base_url"),
-            openai_api_key=api_config.get("api_key"),
-            request_timeout=30.0,  # 30秒超时
-        )
+        
+        base_url = api_config.get("base_url", "")
+        
+        # 检测提供商类型
+        if "generativelanguage.googleapis.com" in base_url:
+            # Google Gemini API - 使用原生 SDK
+            try:
+                from langchain_google_genai import GoogleGenerativeAIEmbeddings
+                logger.info(f"Using Google Gemini embeddings with model: {api_config.get('model')}")
+                return GoogleGenerativeAIEmbeddings(
+                    model=api_config.get("model"),
+                    google_api_key=api_config.get("api_key"),
+                )
+            except ImportError:
+                logger.error("langchain-google-genai not installed. Install with: pip install langchain-google-genai")
+                raise RuntimeError("langchain-google-genai package is required for Google Gemini embeddings")
+        else:
+            # OpenAI 兼容接口
+            return OpenAIEmbeddings(
+                model=api_config.get("model"),
+                openai_api_base=api_config.get("base_url"),
+                openai_api_key=api_config.get("api_key"),
+                request_timeout=30.0,  # 30秒超时
+            )
 
-    def _create_embedder_sync(self, persona_id: Optional[int] = None) -> OpenAIEmbeddings:
+    def _create_embedder_sync(self, persona_id: Optional[int] = None) -> Embeddings:
         """Create embedder synchronously (for prototype mode)."""
         api_config = self._resolve_api_config_sync(persona_id)
         logger.info(f"Creating embedder for model: {api_config.get('model')}")
-        return OpenAIEmbeddings(
-            model=api_config.get("model"),
-            openai_api_base=api_config.get("base_url"),
-            openai_api_key=api_config.get("api_key"),
-            request_timeout=30.0,  # 30秒超时
-        )
+        
+        base_url = api_config.get("base_url", "")
+        
+        # 检测提供商类型
+        if "generativelanguage.googleapis.com" in base_url:
+            # Google Gemini API - 使用原生 SDK
+            try:
+                from langchain_google_genai import GoogleGenerativeAIEmbeddings
+                logger.info(f"Using Google Gemini embeddings with model: {api_config.get('model')}")
+                return GoogleGenerativeAIEmbeddings(
+                    model=api_config.get("model"),
+                    google_api_key=api_config.get("api_key"),
+                )
+            except ImportError:
+                logger.error("langchain-google-genai not installed. Install with: pip install langchain-google-genai")
+                raise RuntimeError("langchain-google-genai package is required for Google Gemini embeddings")
+        else:
+            # OpenAI 兼容接口
+            return OpenAIEmbeddings(
+                model=api_config.get("model"),
+                openai_api_base=api_config.get("base_url"),
+                openai_api_key=api_config.get("api_key"),
+                request_timeout=30.0,  # 30秒超时
+            )
 
     async def _create_llm(self, persona_id: Optional[int] = None) -> OpenAI:
         """Create LLM from resolved API config (per persona when provided)."""

@@ -222,22 +222,38 @@ async def persona_dialogue_function(config: PersonaDialogueFunctionConfig, build
     async def _respond_stream(input_data: PersonaDialogueInput) -> AsyncGenerator[PersonaDialogueOutput, None]:
         messages = await _build_messages(input_data)
         state = ToolCallAgentGraphState(messages=messages)
+        
+        logger.info(f"_respond_stream: Starting stream for persona {config.persona_name}")
+        logger.info(f"_respond_stream: state messages count: {len(state.messages)}")
 
         try:
-            # 使用 astream_events 获取流式输出，解决长时间等待问题
-            # version="v1" 是 LangChain astream_events 的要求
-            async for event in graph.astream_events(state, version="v1"):
-                kind = event["event"]
-                # 监听 LLM 的流式输出事件
-                if kind == "on_chat_model_stream":
-                    chunk = event["data"]["chunk"]
-                    # 过滤掉工具调用产生的空内容，只返回文本内容
-                    # 注意：如果模型在调用工具前有思考过程（CoT），这里也会输出，这是预期的
-                    if hasattr(chunk, "content") and chunk.content:
-                        yield PersonaDialogueOutput(response=chunk.content)
+            # 先尝试非流式调用，获取完整结果
+            # 因为 ToolCallAgentGraph 可能不支持真正的流式输出
+            logger.info(f"_respond_stream: Calling graph.ainvoke...")
+            result_state = await graph.ainvoke(state)
+            logger.info(f"_respond_stream: ainvoke completed, result keys: {list(result_state.keys()) if isinstance(result_state, dict) else 'not a dict'}")
+            
+            # 提取最终消息
+            if isinstance(result_state, dict) and "messages" in result_state:
+                messages_list = result_state["messages"]
+                if messages_list:
+                    last_message = messages_list[-1]
+                    content = _extract_text(last_message)
+                    logger.info(f"_respond_stream: extracted content length: {len(content)}, preview: {repr(content[:100])}")
+                    
+                    if content:
+                        # 一次性返回完整结果
+                        yield PersonaDialogueOutput(response=content)
+                    else:
+                        logger.warning(f"_respond_stream: extracted content is empty")
+                else:
+                    logger.warning(f"_respond_stream: messages list is empty")
+            else:
+                logger.error(f"_respond_stream: result_state format unexpected: {type(result_state)}")
 
         except Exception as e:
             error_msg = str(e)
+            logger.error(f"_respond_stream: Exception occurred: {error_msg}", exc_info=True)
             if "balance is insufficient" in error_msg or "30001" in error_msg:
                 yield PersonaDialogueOutput(response="[系统提示] API 账户余额不足，请充值后再试。")
             elif "401" in error_msg or "authentication" in error_msg.lower():

@@ -151,14 +151,24 @@ class MultiAgentRuntime:
     async def invoke_stream(self, persona_name: str, payload: dict[str, object]):
         """流式调用 persona function"""
         fn = self.functions[persona_name]
+        logger.info(f"invoke_stream: persona_name={persona_name}, fn type={type(fn)}, fn has astream: {hasattr(fn, 'astream')}")
         # 尝试使用流式 API
         if hasattr(fn, 'astream'):
+            chunk_count = 0
             async for chunk in fn.astream(payload):
+                chunk_count += 1
+                if chunk_count <= 5:  # Log first 5 chunks at INFO level
+                    logger.info(f"invoke_stream: received chunk #{chunk_count}, type={type(chunk)}, has response: {hasattr(chunk, 'response')}")
+                    if hasattr(chunk, 'response'):
+                        logger.info(f"invoke_stream: chunk.response preview: {repr(chunk.response[:100]) if chunk.response else 'None or empty'}")
                 if hasattr(chunk, 'response'):
                     yield chunk.response
                 else:
+                    logger.info(f"invoke_stream: chunk #{chunk_count} has no response attribute, yielding raw chunk")
                     yield chunk
+            logger.info(f"invoke_stream: finished streaming, total chunks: {chunk_count}")
         else:
             # 降级到非流式
+            logger.warning(f"invoke_stream: fn.astream not available, falling back to ainvoke")
             result = await fn.ainvoke(payload)
             yield result

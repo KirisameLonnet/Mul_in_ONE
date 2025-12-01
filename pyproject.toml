@@ -19,6 +19,7 @@ dependencies = [
     "langchain-community~=0.0",
     "lxml>=5.2.2",
     "langchain-openai>=0.1.0",
+    "langchain-google-genai>=2.0.0",
     "pytest-asyncio>=0.23",
 ]
 readme = "README.md"

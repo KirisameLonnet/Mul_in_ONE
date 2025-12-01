@@ -5,7 +5,6 @@
         <d-avatar :name="username" width="40" height="40" />
         <div class="details">
           <div class="name">{{ username }}</div>
-          <div class="tenant">{{ tenantId }}</div>
         </div>
       </div>
 
@@ -55,7 +54,6 @@ import DebugPage from '../pages/DebugPage.vue';
 const currentView = ref('sessions');
 
 const username = computed(() => authState.username);
-const tenantId = computed(() => authState.tenantId);
 
 const onMenuSelect = (key: string) => {
   currentView.value = key;

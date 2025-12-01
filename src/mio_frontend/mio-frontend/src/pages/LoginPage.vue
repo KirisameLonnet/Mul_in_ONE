@@ -9,7 +9,6 @@
             </q-card-section>
             <q-card-section>
               <q-input v-model="username" label="Username" />
-              <q-input v-model="tenantId" label="Tenant ID" />
             </q-card-section>
             <q-card-actions align="right">
               <q-btn label="Login" color="primary" @click="login" />
@@ -26,12 +25,11 @@ import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { login as apiLogin } from '../api'
 
-const username = ref('user')
-const tenantId = ref('default')
+const username = ref('testuser')
 const router = useRouter()
 
 const login = async () => {
-  await apiLogin(username.value, tenantId.value)
+  await apiLogin(username.value)
   router.push('/')
 }
 </script>

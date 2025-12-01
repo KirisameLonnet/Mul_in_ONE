@@ -82,7 +82,7 @@ const loadData = async () => {
   try {
     const [msgs, personas] = await Promise.all([
       getMessages(sessionId),
-      getPersonas(authState.tenantId)
+      getPersonas(authState.username)
     ])
     messages.value = msgs
     availablePersonas.value = personas

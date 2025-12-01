@@ -479,7 +479,7 @@ async def get_embedding_config(
 ) -> EmbeddingConfigResponse:
     """获取用户的全局 Embedding 模型配置"""
     logger.info("Fetching embedding config for user=%s", username)
-    config = await repository.get_tenant_embedding_config(username)
+    config = await repository.get_user_embedding_config(username)
     return EmbeddingConfigResponse(
         username=username,
         api_profile_id=config.get("api_profile_id"),
@@ -498,7 +498,7 @@ async def update_embedding_config(
     """设置用户的全局 Embedding 模型配置"""
     logger.info("Updating embedding config for user=%s to profile_id=%s", username, payload.api_profile_id)
     try:
-        config = await repository.update_tenant_embedding_config(username, payload.api_profile_id)
+        config = await repository.update_user_embedding_config(username, payload.api_profile_id)
         return EmbeddingConfigResponse(
             username=username,
             api_profile_id=config.get("api_profile_id"),

@@ -7,7 +7,7 @@
           MIO Dashboard
         </q-toolbar-title>
         <q-btn flat round :icon="$q.dark.isActive ? 'dark_mode' : 'light_mode'" @click="toggleDarkMode" class="q-mr-sm" />
-        <div class="q-mr-md">{{ username }} ({{ tenantId }})</div>
+        <div class="q-mr-md">User: {{ username }}</div>
         <q-btn flat round icon="logout" @click="handleLogout" />
       </q-toolbar>
     </q-header>
@@ -73,7 +73,6 @@ const router = useRouter()
 const $q = useQuasar()
 
 const username = computed(() => authState.username)
-const tenantId = computed(() => authState.tenantId)
 
 function toggleLeftDrawer () {
   leftDrawerOpen.value = !leftDrawerOpen.value

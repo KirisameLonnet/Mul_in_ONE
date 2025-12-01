@@ -4,38 +4,31 @@ import { reactive } from 'vue';
 // --- Auth State ---
 export const authState = reactive({
   username: localStorage.getItem('mio_username') || '',
-  tenantId: localStorage.getItem('mio_tenant_id') || 'default_tenant',
   isLoggedIn: !!localStorage.getItem('mio_username'),
 });
 
-export const login = (username: string, tenantId: string = 'default_tenant') => {
+export const login = (username: string) => {
   authState.username = username;
-  authState.tenantId = tenantId;
   authState.isLoggedIn = true;
   localStorage.setItem('mio_username', username);
-  localStorage.setItem('mio_tenant_id', tenantId);
 };
 
 export const logout = () => {
   authState.username = '';
   authState.isLoggedIn = false;
   localStorage.removeItem('mio_username');
-  // We might want to keep tenant_id or clear it. Let's keep it for convenience.
 };
 
 export const api = axios.create({
   baseURL: '/api',
 });
 
-// Interceptor to inject tenant_id and user_id
+// Interceptor to inject username
 api.interceptors.request.use((config) => {
   if (authState.isLoggedIn) {
     config.params = config.params || {};
-    if (!config.params.tenant_id) {
-      config.params.tenant_id = authState.tenantId;
-    }
-    if (!config.params.user_id) {
-      config.params.user_id = authState.username; // Mapping username to user_id (email)
+    if (!config.params.username) {
+      config.params.username = authState.username;
     }
   }
   return config;
@@ -49,9 +42,8 @@ export interface Message {
 }
 
 export interface Session {
-  id: string; // Changed from session_id to match backend model usually, but let's check usage
-  tenant_id: string;
-  user_id: string;
+  id: string;
+  username: string;
   created_at: string;
   user_persona?: string;
   title?: string | null;
@@ -139,9 +131,8 @@ export const sendMessage = async (session_id: string, content: string, target_pe
 };
 
 export interface APIProfile {
-// ...existing code...
   id: number;
-  tenant_id: string;
+  username: string;
   name: string;
   base_url: string;
   model: string;
@@ -153,7 +144,7 @@ export interface APIProfile {
 }
 
 export interface CreateAPIProfilePayload {
-  tenant_id: string;
+  username: string;
   name: string;
   base_url: string;
   model: string;
@@ -164,7 +155,7 @@ export interface CreateAPIProfilePayload {
 }
 
 export interface UpdateAPIProfilePayload {
-  tenant_id: string;
+  username: string;
   name?: string;
   base_url?: string;
   model?: string;
@@ -176,7 +167,7 @@ export interface UpdateAPIProfilePayload {
 
 export interface Persona {
   id: number;
-  tenant_id: string;
+  username: string;
   name: string;
   handle: string;
   prompt: string;
@@ -194,7 +185,7 @@ export interface Persona {
 }
 
 export interface CreatePersonaPayload {
-  tenant_id: string;
+  username: string;
   name: string;
   prompt: string;
   background?: string;
@@ -208,7 +199,7 @@ export interface CreatePersonaPayload {
 }
 
 export interface UpdatePersonaPayload {
-  tenant_id: string;
+  username: string;
   name?: string;
   prompt?: string;
   background?: string | null;
@@ -221,22 +212,22 @@ export interface UpdatePersonaPayload {
   is_default?: boolean;
 }
 
-export const getAPIProfiles = async (tenant_id: string): Promise<APIProfile[]> => {
-  const response = await api.get<APIProfile[]>('/api-profiles', {
-    params: { tenant_id },
+export const getAPIProfiles = async (username: string): Promise<APIProfile[]> => {
+  const response = await api.get<APIProfile[]>('/personas/api-profiles', {
+    params: { username },
   });
   return response.data;
 };
 
-export const getAPIProfile = async (tenant_id: string, profile_id: number): Promise<APIProfile> => {
-  const response = await api.get<APIProfile>(`/api-profiles/${profile_id}`, {
-    params: { tenant_id }
+export const getAPIProfile = async (username: string, profile_id: number): Promise<APIProfile> => {
+  const response = await api.get<APIProfile>(`/personas/api-profiles/${profile_id}`, {
+    params: { username }
   });
   return response.data;
 };
 
 export const createAPIProfile = async (payload: CreateAPIProfilePayload): Promise<APIProfile> => {
-  const response = await api.post<APIProfile>('/api-profiles', payload);
+  const response = await api.post<APIProfile>('/personas/api-profiles', payload);
   return response.data;
 };
 
@@ -244,41 +235,41 @@ export const updateAPIProfile = async (
   profile_id: number,
   payload: UpdateAPIProfilePayload
 ): Promise<APIProfile> => {
-  const { tenant_id, ...body } = payload;
-  const response = await api.patch<APIProfile>(`/api-profiles/${profile_id}`, body, {
-    params: { tenant_id }
+  const { username, ...body } = payload;
+  const response = await api.patch<APIProfile>(`/personas/api-profiles/${profile_id}`, body, {
+    params: { username }
   });
   return response.data;
 };
 
-export const deleteAPIProfile = async (tenant_id: string, profile_id: number): Promise<void> => {
-  await api.delete(`/api-profiles/${profile_id}`, {
-    params: { tenant_id }
+export const deleteAPIProfile = async (username: string, profile_id: number): Promise<void> => {
+  await api.delete(`/personas/api-profiles/${profile_id}`, {
+    params: { username }
   });
 };
 
-export const getPersonas = async (tenant_id: string): Promise<Persona[]> => {
-  const response = await api.get<Persona[]>('/personas', {
-    params: { tenant_id },
+export const getPersonas = async (username: string): Promise<Persona[]> => {
+  const response = await api.get<Persona[]>('/personas/personas', {
+    params: { username },
   });
   return response.data;
 };
 
 export const createPersona = async (payload: CreatePersonaPayload): Promise<Persona> => {
-  const response = await api.post<Persona>('/personas', payload);
+  const response = await api.post<Persona>('/personas/personas', payload);
   return response.data;
 };
 
 export const updatePersona = async (persona_id: number, payload: UpdatePersonaPayload): Promise<Persona> => {
-  const { tenant_id, ...body } = payload;
-  const response = await api.patch<Persona>(`/personas/${persona_id}`, body, {
-    params: { tenant_id }
+  const { username, ...body } = payload;
+  const response = await api.patch<Persona>(`/personas/personas/${persona_id}`, body, {
+    params: { username }
   });
   return response.data;
 };
 
-export const deletePersona = async (tenant_id: string, persona_id: number): Promise<void> => {
-  await api.delete(`/personas/${persona_id}`, {
-    params: { tenant_id }
+export const deletePersona = async (username: string, persona_id: number): Promise<void> => {
+  await api.delete(`/personas/personas/${persona_id}`, {
+    params: { username }
   });
 };

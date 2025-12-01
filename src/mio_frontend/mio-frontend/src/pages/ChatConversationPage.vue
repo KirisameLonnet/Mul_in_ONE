@@ -644,7 +644,7 @@ const loadData = async () => {
   try {
     const [msgs, personas, sessionData] = await Promise.all([
       getMessages(sessionId),
-      getPersonas(authState.tenantId),
+      getPersonas(authState.username),
       getSession(sessionId)
     ])
     // 处理 API 可能返回对象包含数组的情况

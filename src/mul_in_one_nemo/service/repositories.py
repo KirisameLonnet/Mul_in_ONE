@@ -99,6 +99,19 @@ class BaseSQLAlchemyRepository:
         finally:
             await session.close()
 
+    async def _get_user_by_username(self, db: AsyncSession, username: str) -> UserRow:
+        """Get user by username, raise ValueError if not found."""
+        stmt = select(UserRow).where(UserRow.username == username)
+        result = await db.execute(stmt)
+        user = result.scalar_one_or_none()
+        if not user:
+            raise ValueError(f"User '{username}' not found")
+        return user
+
+    @staticmethod
+    def _generate_session_id(username: str) -> str:
+        return f"sess_{username}_{uuid.uuid4().hex[:8]}"
+
 
 class InMemorySessionRepository(SessionRepository):
     """In-memory session store with async locks for concurrency safety."""
@@ -639,19 +652,6 @@ class SQLAlchemySessionRepository(SessionRepository, BaseSQLAlchemyRepository):
         if value.tzinfo is None:
             return value.replace(tzinfo=timezone.utc)
         return value.astimezone(timezone.utc)
-
-    async def _get_user_by_username(self, db: AsyncSession, username: str) -> UserRow:
-        """Get user by username, raise ValueError if not found."""
-        stmt = select(UserRow).where(UserRow.username == username)
-        result = await db.execute(stmt)
-        user = result.scalar_one_or_none()
-        if not user:
-            raise ValueError(f"User '{username}' not found")
-        return user
-
-    def _generate_session_id(self, username: str) -> str:
-        return f"sess_{username}_{uuid.uuid4().hex[:8]}"
-
 
 class SQLAlchemyPersonaRepository(PersonaDataRepository, BaseSQLAlchemyRepository):
     """Repository that manages API profiles and personas inside the database."""

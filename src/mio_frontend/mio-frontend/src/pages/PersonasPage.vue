@@ -303,8 +303,8 @@ const loadData = async () => {
   loading.value = true
   try {
     const [pData, apData] = await Promise.all([
-      getPersonas(authState.tenantId),
-      getAPIProfiles(authState.tenantId)
+      getPersonas(authState.username),
+      getAPIProfiles(authState.username)
     ])
     personas.value = pData
     apiProfiles.value = apData
@@ -319,7 +319,7 @@ const loadData = async () => {
 
 const loadEmbeddingConfig = async () => {
   try {
-    const response = await fetch(`/api/embedding-config?tenant_id=${authState.tenantId}`)
+    const response = await fetch(`/api/personas/embedding-config?username=${authState.username}`)
     if (response.ok) {
       const data = await response.json()
       if (data.api_profile_id) {
@@ -335,7 +335,7 @@ const loadEmbeddingConfig = async () => {
 const saveEmbeddingConfig = async () => {
   savingEmbeddingConfig.value = true
   try {
-    const response = await fetch(`/api/embedding-config?tenant_id=${authState.tenantId}`, {
+    const response = await fetch(`/api/personas/embedding-config?username=${authState.username}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -375,8 +375,8 @@ const buildVectorDatabase = async () => {
   buildProgressDialog.value = true
 
   try {
-    const url = new URL(`/api/build-vector-db`, window.location.origin)
-    url.searchParams.set('tenant_id', authState.tenantId)
+    const url = new URL(`/api/personas/build-vector-db`, window.location.origin)
+    url.searchParams.set('username', authState.username)
     if (expectedDim) {
       url.searchParams.set('expected_dim', String(expectedDim))
     }
@@ -488,7 +488,7 @@ const handleCreate = async () => {
   creating.value = true
   try {
     await createPersona({
-      tenant_id: authState.tenantId,
+      username: authState.username,
       name: newPersona.name,
       handle: newPersona.handle,
       prompt: newPersona.prompt,
@@ -515,7 +515,7 @@ const handleUpdate = async () => {
   updating.value = true
   try {
     const payload: UpdatePersonaPayload = {
-      tenant_id: authState.tenantId,
+      username: authState.username,
       name: editPersona.name,
       handle: editPersona.handle,
       prompt: editPersona.prompt,
@@ -542,7 +542,7 @@ const handleDelete = async () => {
   if (!selectedPersona.value) return
   deleting.value = true
   try {
-    await deletePersona(authState.tenantId, selectedPersona.value.id)
+    await deletePersona(authState.username, selectedPersona.value.id)
     deleteDialog.value = false
     $q.notify({ type: 'positive', message: 'Persona deleted' })
     loadData()

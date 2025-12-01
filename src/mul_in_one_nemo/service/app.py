@@ -73,7 +73,7 @@ def create_app() -> FastAPI:
         uvicorn_logger.setLevel(logging.INFO)
 
     app.include_router(sessions.router, prefix="/api")
-    app.include_router(personas.router, prefix="/api")
+    app.include_router(personas.router, prefix="/api/personas")
     app.include_router(debug.router, prefix="/api")
 
     return app

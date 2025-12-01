@@ -250,7 +250,7 @@ const exitSession = () => {
 
 const loadPersonas = async () => {
   try {
-    availablePersonas.value = await getPersonas(authState.tenantId);
+    availablePersonas.value = await getPersonas(authState.username);
   } catch (e) {
     console.error(e);
   }

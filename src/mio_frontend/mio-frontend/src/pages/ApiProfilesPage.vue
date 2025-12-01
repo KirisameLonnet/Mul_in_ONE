@@ -175,7 +175,7 @@ const columns = [
 const loadProfiles = async () => {
   loading.value = true
   try {
-    profiles.value = await getAPIProfiles(authState.tenantId)
+    profiles.value = await getAPIProfiles(authState.username)
   } catch (e) {
     $q.notify({ type: 'negative', message: 'Failed to load profiles' })
   } finally {
@@ -209,7 +209,7 @@ const handleCreate = async () => {
   creating.value = true
   try {
     await createAPIProfile({
-      tenant_id: authState.tenantId,
+      username: authState.username,
       name: newProfile.name,
       base_url: newProfile.base_url,
       model: newProfile.model,
@@ -233,7 +233,7 @@ const handleUpdate = async () => {
   updating.value = true
   try {
     const payload: UpdateAPIProfilePayload = {
-      tenant_id: authState.tenantId,
+      username: authState.username,
       name: editProfile.name,
       base_url: editProfile.base_url,
       model: editProfile.model,
@@ -259,7 +259,7 @@ const handleDelete = async () => {
   if (!selectedProfile.value) return
   deleting.value = true
   try {
-    await deleteAPIProfile(authState.tenantId, selectedProfile.value.id)
+    await deleteAPIProfile(authState.username, selectedProfile.value.id)
     deleteDialog.value = false
     $q.notify({ type: 'positive', message: 'Profile deleted' })
     loadProfiles()
@@ -270,82 +270,12 @@ const handleDelete = async () => {
   }
 }
 
-// 前端直接对配置的第三方 API 做健康检查（无需后端）
-const checkHealth = async (profile: APIProfile) => {
-  const base = (profile.base_url || '').replace(/\/$/, '')
-  const model = profile.model || ''
-  const name = profile.name || base
-  const apiKey = (profile as any).api_key || '' // 注意：仅在表单中创建/编辑时可得，列表通常不返回明文
-
-  // 优先尝试通用的 /v1/models
-  const candidates: { url: string; method?: string; headers?: Record<string, string>; body?: any }[] = []
-
-  // OpenAI 兼容
-  candidates.push({
-    url: `${base}/v1/models`,
-    headers: apiKey ? { Authorization: `Bearer ${apiKey}` } : {}
-  })
-
-  // SiliconFlow 兼容
-  candidates.push({
-    url: `${base}/v1/models`,
-    headers: apiKey ? { Authorization: `Bearer ${apiKey}` } : {}
-  })
-
-  // 如果是 embedding 配置，尝试最小化的 embed 测试
-  if (model) {
-    candidates.push({
-      url: `${base}/v1/embeddings`,
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {})
-      },
-      body: JSON.stringify({ model, input: 'ping' })
-    })
-  }
-
-  // 最后兜底：直接 GET base
-  candidates.push({ url: base })
-
-  const controller = new AbortController()
-  const timeout = setTimeout(() => controller.abort(), 8000)
-
-  $q.notify({ type: 'info', message: `正在检查 ${name}...` })
-  try {
-    let lastError: any = null
-    for (const req of candidates) {
-      try {
-        const res = await fetch(req.url, {
-          method: req.method || 'GET',
-          headers: req.headers,
-          body: req.body,
-          signal: controller.signal,
-          // 前端直接请求第三方 API 可能会触发 CORS；此处仅用于快速探测
-        })
-        if (res.ok) {
-          $q.notify({ type: 'positive', message: `健康检查通过: ${res.status}` })
-          clearTimeout(timeout)
-          return
-        } else {
-          lastError = await res.text().catch(() => res.status)
-        }
-      } catch (e) {
-        lastError = e
-      }
-    }
-    $q.notify({ type: 'negative', message: `健康检查失败（可能是 CORS 或凭证问题）: ${String(lastError).slice(0, 200)}` })
-  } finally {
-    clearTimeout(timeout)
-  }
-}
-
 // 后端健康检查（避免前端 CORS 问题）
 const serverHealthCheck = async (profile: APIProfile) => {
   $q.notify({ type: 'info', message: `正在后端检查 ${profile.name}...` })
   try {
-    const { data } = await api.get(`/api-profiles/${profile.id}/health`, {
-      params: { tenant_id: authState.tenantId }
+    const { data } = await api.get(`/personas/api-profiles/${profile.id}/health`, {
+      params: { username: authState.username }
     })
     healthStatus.value = {
       ...healthStatus.value,

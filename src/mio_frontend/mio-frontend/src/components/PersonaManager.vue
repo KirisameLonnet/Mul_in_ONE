@@ -114,8 +114,8 @@ const loadData = async () => {
   loading.value = true;
   try {
     const [pData, apiData] = await Promise.all([
-      getPersonas(authState.tenantId),
-      getAPIProfiles(authState.tenantId)
+      getPersonas(authState.username),
+      getAPIProfiles(authState.username)
     ]);
     personas.value = pData;
     apiProfiles.value = apiData;
@@ -130,7 +130,7 @@ const handleCreate = async () => {
   if (!isValid.value) return;
   try {
     await createPersona({
-      tenant_id: authState.tenantId,
+      username: authState.username,
       ...newPersona
     });
     // Reset form
@@ -167,7 +167,7 @@ const handleRefreshRAG = async (personaId: number) => {
   refreshingPersonaId.value = personaId;
   try {
     const response = await fetch(
-      `http://localhost:8000/api/personas/${personaId}/refresh_rag?tenant_id=${authState.tenantId}`,
+      `http://localhost:8000/api/personas/personas/${personaId}/refresh_rag?username=${authState.username}`,
       {
         method: 'POST',
         headers: {

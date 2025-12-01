@@ -16,14 +16,6 @@
         />
       </div>
 
-      <div class="form-group">
-        <d-input 
-          v-model="tenantId" 
-          placeholder="Tenant ID (Optional)" 
-          size="lg"
-        />
-      </div>
-
       <d-button 
         variant="solid" 
         color="primary" 
@@ -43,11 +35,10 @@ import { ref } from 'vue';
 import { login } from '../api';
 
 const username = ref('');
-const tenantId = ref('default_tenant');
 
 const handleLogin = () => {
   if (!username.value) return;
-  login(username.value, tenantId.value);
+  login(username.value);
 };
 </script>
 

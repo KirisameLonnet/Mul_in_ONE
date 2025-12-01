@@ -78,7 +78,7 @@ def get_rag_service() -> RAGService:
             if persona_record is None:
                 raise ValueError(f"Persona {persona_id} not found")
             
-            embedding_config = await repo.get_tenant_embedding_config(persona_record.username)
+            embedding_config = await repo.get_user_embedding_config(persona_record.username)
             if embedding_config.get("api_profile_id") is None:
                 raise ValueError(
                     f"No embedding model configured for user {persona_record.username}. "
@@ -86,7 +86,7 @@ def get_rag_service() -> RAGService:
                 )
             
             # get_persona_api_config_for_embedding will fetch and decrypt the key
-            embedding_api_config = await repo.get_embedding_api_config_for_tenant(persona_record.username)
+            embedding_api_config = await repo.get_embedding_api_config_for_user(persona_record.username)
             if embedding_api_config is None:
                 raise ValueError(f"Embedding API profile misconfigured for user {persona_record.username}")
             

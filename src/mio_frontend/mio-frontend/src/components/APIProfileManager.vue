@@ -90,7 +90,7 @@ const isValid = computed(() => {
 const loadProfiles = async () => {
   loading.value = true;
   try {
-    profiles.value = await getAPIProfiles(authState.tenantId);
+    profiles.value = await getAPIProfiles(authState.username);
   } catch (e) {
     console.error(e);
   } finally {
@@ -102,7 +102,7 @@ const handleCreate = async () => {
   if (!isValid.value) return;
   try {
     await createAPIProfile({
-      tenant_id: authState.tenantId,
+      username: authState.username,
       ...newProfile
     });
     // Reset form

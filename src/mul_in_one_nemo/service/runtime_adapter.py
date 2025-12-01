@@ -276,12 +276,34 @@ class NemoRuntimeAdapter(RuntimeAdapter):
 
             # 2. Set initial context for the turn
             context_tags = self._extract_tags(user_message_content, persona_settings.personas)
+            # Map explicit target handles (if any) to persona names
+            user_selected_personas = None  # Track user's explicit selection
+            if message.target_personas:
+                # target_personas contains handles (e.g., "uika"), scheduler expects names
+                handle_to_name = {p.handle: p.name for p in persona_settings.personas}
+                user_selected_personas = []
+                for target_handle in message.target_personas:
+                    persona_name = handle_to_name.get(target_handle)
+                    if persona_name:
+                        if persona_name not in context_tags:
+                            context_tags.append(persona_name)
+                        user_selected_personas.append(persona_name)
+
+            # Soft closing detection on user message (does not force immediate stop, but limits rounds)
+            soft_closing = False
+            try:
+                soft_close_pattern = re.compile(r"(晚安|睡了|困了|先这样|明天见|good\s*night|sleep|该睡|不聊了)")
+                if soft_close_pattern.search(user_message_content or ""):
+                    soft_closing = True
+            except Exception:
+                soft_closing = False
 
             last_speaker = message.sender or "user"
             is_first_round = True
             num_personas = len(persona_settings.personas)
-            # Use configurable max exchanges per user message
-            max_exchanges = max(1, getattr(self._settings, "max_exchanges_per_turn", 8))
+            # Use configurable max exchanges per user message (reduce if soft closing)
+            configured_max = max(1, getattr(self._settings, "max_exchanges_per_turn", 8))
+            max_exchanges = 1 if soft_closing else configured_max
 
             # Smart stop policy state
             from collections import deque
@@ -294,9 +316,10 @@ class NemoRuntimeAdapter(RuntimeAdapter):
             sim_threshold = float(getattr(self._settings, "stop_similarity_threshold", 0.9))
             logger.info(f"Starting conversation loop: context_tags={context_tags}, user_selected={user_selected_personas}")
 
-                # 注意：显式停止命令只在 SessionService 层拦截（且仅对“正在流式处理中”生效）
+            # 注意：显式停止命令只在 SessionService 层拦截（且仅对“正在流式处理中”生效）
 
             # 3. Start the conversation loop
+            responded_personas: set[str] = set()
             for exchange_round in range(max_exchanges):
                 logger.info(f"Exchange round {exchange_round}: last_speaker={last_speaker}, is_first_round={is_first_round}")
                 # If user explicitly selected personas, restrict conversation to only those personas
@@ -345,31 +368,32 @@ class NemoRuntimeAdapter(RuntimeAdapter):
                     # Construct payload with appropriate context
                     # In the first exchange round, ALL selected speakers respond to the user's original message
                     # In subsequent rounds, agents respond to the previous speaker
-                    if exchange_round == 0:
-                        # The first round: all agent(s) respond directly to the user's message
+                    # Determine context framing rules:
+                    #  - Round 0: all speakers respond to the original user message
+                    #  - If soft closing user message: only one round; everyone addresses user directly
+                    #  - Subsequent rounds:
+                    #       * If some personas have not yet responded to the original user message, let them still respond to user_message_content
+                    #       * Otherwise, allow natural turn-taking referencing previous speaker
+                    if exchange_round == 0 or soft_closing or persona_name not in responded_personas:
                         payload = {
                             "history": memory.as_payload(runtime.settings.memory_window, last_n=1),
                             "user_message": user_message_content,
-                            "persona_id": persona_id, # Inject persona_id
-                            "active_participants": active_participants, # Inject active participants
+                            "persona_id": persona_id,
+                            "active_participants": active_participants,
                             "user_display_name": getattr(session, "user_display_name", None),
                             "user_handle": getattr(session, "user_handle", None),
                             "user_persona": getattr(session, "user_persona", None),
                         }
                     else:
-                        # Subsequent rounds: agents respond to the previous speaker in a more contextual way
-                        # Skip if this persona is responding to themselves (shouldn't happen due to check above, but safety)
                         if persona_name == last_speaker:
                             continue
-                        
-                        # The full history is in memory, we frame the last message as an observation.
                         last_message = memory.get_last_message()
                         observed_message = f"你刚刚观察到 \"{last_speaker}\" 说: \"{last_message}\"。现在轮到你发言，你可以对此进行评论，或开启新话题。"
                         payload = {
                             "history": memory.as_payload(runtime.settings.memory_window, last_n=1),
                             "user_message": observed_message,
-                            "persona_id": persona_id, # Inject persona_id
-                            "active_participants": active_participants, # Inject active participants
+                            "persona_id": persona_id,
+                            "active_participants": active_participants,
                             "user_display_name": getattr(session, "user_display_name", None),
                             "user_handle": getattr(session, "user_handle", None),
                             "user_persona": getattr(session, "user_persona", None),
@@ -415,6 +439,7 @@ class NemoRuntimeAdapter(RuntimeAdapter):
                     # agent 回复 recipient 默认为 None（群聊），如需@可在此扩展
                     memory.add(persona_name, full_reply, None)
                     last_speaker = persona_name
+                    responded_personas.add(persona_name)
                     round_text_total += (full_reply or "")
                     # Track mentions for heat computation
                     new_tags = self._extract_tags(full_reply, persona_settings.personas)
@@ -465,7 +490,7 @@ class NemoRuntimeAdapter(RuntimeAdapter):
                 prev_round_vec = curr_vec
 
                 # Decide stop: redundancy streak or low heat average over patience
-                if len(heat_window) >= heat_window.maxlen:
+                if len(heat_window) >= heat_window.maxlen and not soft_closing:
                     avg_heat = sum(heat_window) / len(heat_window)
                     logger.info(f"Round heat={heat:.3f}, avg_last_{heat_window.maxlen}={avg_heat:.3f}, sim={sim:.3f}, streak={high_sim_streak}")
                     if high_sim_streak >= 2:
@@ -474,6 +499,13 @@ class NemoRuntimeAdapter(RuntimeAdapter):
                     if avg_heat < heat_threshold:
                         logger.info("Stopping due to low conversation heat")
                         break
+
+                # If user explicitly targeted personas and all have responded, end early
+                if user_selected_personas and all(p in responded_personas for p in user_selected_personas):
+                    logger.info("All explicitly targeted personas responded; stopping")
+                    break
+
+                # If soft closing by user: only first round executed already (max_exchanges=1) so loop ends naturally
 
                 # Mark first round complete after all speakers in this round have spoken
                 is_first_round = False

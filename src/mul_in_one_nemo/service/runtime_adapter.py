@@ -268,6 +268,9 @@ class NemoRuntimeAdapter(RuntimeAdapter):
                             "user_message": user_message_content,
                             "persona_id": persona_id, # Inject persona_id
                             "active_participants": active_participants, # Inject active participants
+                            "user_display_name": getattr(session, "user_display_name", None),
+                            "user_handle": getattr(session, "user_handle", None),
+                            "user_persona": getattr(session, "user_persona", None),
                         }
                     else:
                         # Subsequent rounds: agents respond to the previous speaker in a more contextual way
@@ -283,6 +286,9 @@ class NemoRuntimeAdapter(RuntimeAdapter):
                             "user_message": observed_message,
                             "persona_id": persona_id, # Inject persona_id
                             "active_participants": active_participants, # Inject active participants
+                            "user_display_name": getattr(session, "user_display_name", None),
+                            "user_handle": getattr(session, "user_handle", None),
+                            "user_persona": getattr(session, "user_persona", None),
                         }
 
                     full_reply = ""

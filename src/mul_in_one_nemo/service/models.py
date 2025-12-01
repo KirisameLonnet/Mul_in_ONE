@@ -48,6 +48,10 @@ class SessionRecord:
     created_at: datetime
     user_persona: str | None = None
     participants: list[PersonaRecord] | None = None
+    # Editable session metadata
+    title: str | None = None
+    user_display_name: str | None = None
+    user_handle: str | None = None
 
 
 @dataclass(frozen=True)

@@ -6,7 +6,10 @@ import logging
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
+from fastapi.responses import StreamingResponse
 from pydantic import AnyHttpUrl, BaseModel, Field
+import json
+import asyncio
 
 from mul_in_one_nemo.service.dependencies import get_persona_repository, get_rag_service
 from mul_in_one_nemo.service.models import APIProfileRecord, PersonaRecord
@@ -507,81 +510,103 @@ class BuildVectorDBResponse(BaseModel):
     errors: list[str] = Field(default_factory=list)
 
 
-@router.post("/build-vector-db", response_model=BuildVectorDBResponse)
+@router.post("/build-vector-db")
 async def build_vector_database(
     tenant_id: str = Query(..., description="Tenant identifier"),
     expected_dim: int | None = Query(None, description="Expected embedding dimension (e.g., 384)"),
     repository: PersonaDataRepository = Depends(get_persona_repository),
     rag_service: RAGService = Depends(get_rag_service),
-) -> BuildVectorDBResponse:
-    """为所有 Persona 批量构建/更新向量数据库"""
+) -> StreamingResponse:
+    """为所有 Persona 批量构建/更新向量数据库 (流式响应进度)"""
     logger.info("Building vector database for tenant=%s", tenant_id)
     
-    personas_processed = 0
-    total_documents = 0
-    errors = []
-    
-    try:
-        # 获取所有 persona
-        personas = await repository.list_personas(tenant_id)
+    async def progress_generator():
+        personas_processed = 0
+        total_documents = 0
+        errors = []
         
-        for persona in personas:
-            try:
-                # 跳过没有 background 的 persona
-                if not persona.background or not persona.background.strip():
-                    logger.info(f"Skipping persona {persona.id} ({persona.name}): no background content")
-                    continue
-                
-                logger.info(f"Processing persona {persona.id} ({persona.name})")
-                
-                # 删除旧数据
-                await rag_service.delete_documents_by_source(persona.id, tenant_id, source="background")
-                
-                # 重新摄取
-                result = await rag_service.ingest_text(
-                    text=persona.background,
-                    persona_id=persona.id,
-                    tenant_id=tenant_id,
-                    source="background",
-                    expected_dim=expected_dim,
-                )
-                
-                personas_processed += 1
-                total_documents += result.get("documents_added", 0)
-                
-                logger.info(
-                    f"Persona {persona.id} processed: {result.get('documents_added', 0)} documents"
-                )
-                
-            except Exception as e:
-                error_msg = f"Persona {persona.id} ({persona.name}): {str(e)}"
-                logger.error(error_msg, exc_info=True)
-                errors.append(error_msg)
-        
-        status_msg = "completed" if not errors else "completed_with_errors"
-        message = f"Processed {personas_processed} personas, added {total_documents} documents"
-        
-        logger.info(
-            "Vector database build completed: personas=%s docs=%s errors=%s",
-            personas_processed,
-            total_documents,
-            len(errors),
-        )
-        
-        return BuildVectorDBResponse(
-            status=status_msg,
-            message=message,
-            personas_processed=personas_processed,
-            total_documents=total_documents,
-            errors=errors,
-        )
-        
-    except Exception as exc:
-        logger.exception("Failed to build vector database")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Vector database build failed: {str(exc)}"
-        ) from exc
+        try:
+            # 获取所有 persona
+            personas = await repository.list_personas(tenant_id)
+            total_personas = len(personas)
+            
+            # 过滤出有 background 的 persona 数量用于计算进度（可选，这里简单起见用总数）
+            # 实际上我们会在循环中跳过，所以进度条可能会跳跃，但总数是确定的
+            
+            if total_personas == 0:
+                yield json.dumps({
+                    "progress": 100,
+                    "message": "No personas found",
+                    "status": "completed",
+                    "details": {"processed": 0, "docs": 0, "errors": []}
+                }) + "\n"
+                return
+
+            for i, persona in enumerate(personas):
+                current_progress = int((i / total_personas) * 100)
+                yield json.dumps({
+                    "progress": current_progress,
+                    "message": f"Processing {persona.name}...",
+                    "status": "processing"
+                }) + "\n"
+
+                try:
+                    # 跳过没有 background 的 persona
+                    if not persona.background or not persona.background.strip():
+                        logger.info(f"Skipping persona {persona.id} ({persona.name}): no background content")
+                        continue
+                    
+                    logger.info(f"Processing persona {persona.id} ({persona.name})")
+                    
+                    # 删除旧数据
+                    await rag_service.delete_documents_by_source(persona.id, tenant_id, source="background")
+                    
+                    # 重新摄取
+                    result = await rag_service.ingest_text(
+                        text=persona.background,
+                        persona_id=persona.id,
+                        tenant_id=tenant_id,
+                        source="background",
+                        expected_dim=expected_dim,
+                    )
+                    
+                    personas_processed += 1
+                    total_documents += result.get("documents_added", 0)
+                    
+                    logger.info(
+                        f"Persona {persona.id} processed: {result.get('documents_added', 0)} documents"
+                    )
+                    
+                except Exception as e:
+                    error_msg = f"Persona {persona.id} ({persona.name}): {str(e)}"
+                    logger.error(error_msg, exc_info=True)
+                    errors.append(error_msg)
+            
+            # 完成
+            status_msg = "completed" if not errors else "completed_with_errors"
+            final_message = f"Processed {personas_processed} personas, added {total_documents} documents"
+            
+            yield json.dumps({
+                "progress": 100,
+                "message": final_message,
+                "status": status_msg,
+                "details": {
+                    "processed": personas_processed,
+                    "docs": total_documents,
+                    "errors": errors
+                }
+            }) + "\n"
+            
+        except Exception as exc:
+            logger.exception("Failed to build vector database")
+            yield json.dumps({
+                "progress": 100,
+                "message": f"Failed: {str(exc)}",
+                "status": "failed",
+                "error": str(exc)
+            }) + "\n"
+
+    return StreamingResponse(progress_generator(), media_type="application/x-ndjson")
 
 
 class APIHealthResponse(BaseModel):

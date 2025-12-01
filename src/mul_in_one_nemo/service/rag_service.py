@@ -15,7 +15,7 @@ from langchain_core.prompts import PromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 from pydantic import AnyHttpUrl
 
-from pymilvus import Collection, connections
+from pymilvus import Collection, connections, utility, FieldSchema, CollectionSchema, DataType
 
 # Import NAT-based adapter for multi-tenant RAG
 from .rag_adapter import RagAdapter
@@ -195,6 +195,30 @@ class RAGService:
             temperature=api_config.get("temperature", 0.4),
         )
 
+    def _create_collection(self, collection_name: str, dim: int):
+        """Creates a Milvus collection with the standard schema."""
+        logger.info(f"Creating collection {collection_name} with dim={dim}")
+        
+        fields = [
+            FieldSchema(name="document_id", dtype=DataType.VARCHAR, max_length=64, is_primary=True, auto_id=False),
+            FieldSchema(name="vector", dtype=DataType.FLOAT_VECTOR, dim=dim),
+            FieldSchema(name="text", dtype=DataType.VARCHAR, max_length=8192),
+            FieldSchema(name="source", dtype=DataType.VARCHAR, max_length=256),
+        ]
+        
+        schema = CollectionSchema(fields=fields, description=f"RAG store for {collection_name}", enable_dynamic_field=True)
+        collection = Collection(name=collection_name, schema=schema)
+        
+        # Create index
+        index_params = {
+            "index_type": "IVF_FLAT",
+            "metric_type": "L2",
+            "params": {"nlist": 1024},
+        }
+        collection.create_index(field_name="vector", index_params=index_params)
+        collection.load()
+        logger.info(f"Collection {collection_name} created and loaded.")
+
     async def ingest_url(self, url: str, persona_id: int, tenant_id: str) -> dict:
         """
         Fetch content from a URL, generate embeddings, and store them in a persona-specific
@@ -263,6 +287,15 @@ class RAGService:
         
         # Connect to Milvus and insert with manual UUIDs
         connections.connect(alias="default", uri=DEFAULT_MILVUS_URI)
+        
+        # Ensure collection exists
+        if not utility.has_collection(collection_name):
+            if not embeddings:
+                logger.warning("No embeddings generated, cannot infer dimension to create collection.")
+                raise ValueError("No embeddings to infer dimension for new collection")
+            dim = len(embeddings[0])
+            self._create_collection(collection_name, dim)
+
         collection = Collection(collection_name)
         
         # Prepare data with string UUIDs
@@ -343,6 +376,15 @@ class RAGService:
         
         # Connect to Milvus and insert with manual UUIDs
         connections.connect(alias="default", uri=DEFAULT_MILVUS_URI)
+        
+        # Ensure collection exists
+        if not utility.has_collection(collection_name):
+            if not embeddings:
+                logger.warning("No embeddings generated, cannot infer dimension to create collection.")
+                raise ValueError("No embeddings to infer dimension for new collection")
+            dim = len(embeddings[0])
+            self._create_collection(collection_name, dim)
+
         collection = Collection(collection_name)
         
         # Prepare data with string UUIDs

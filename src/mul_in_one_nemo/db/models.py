@@ -105,6 +105,10 @@ class Session(Base):
     status: Mapped[str] = mapped_column(String(32), default="active")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     user_persona: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # New editable fields
+    title: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    user_display_name: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    user_handle: Mapped[str | None] = mapped_column(String(128), nullable=True)
 
     tenant: Mapped["Tenant"] = relationship("Tenant", back_populates="sessions")
     user: Mapped["User"] = relationship("User", back_populates="sessions")

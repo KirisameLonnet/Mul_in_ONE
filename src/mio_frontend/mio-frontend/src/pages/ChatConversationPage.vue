@@ -5,7 +5,7 @@
       <div class="header-left">
         <q-btn flat round icon="arrow_back" @click="goBack" />
         <div class="header-title">
-          <div class="title-text">Chat Session</div>
+          <div class="title-text">{{ sessionTitle || 'Chat Session' }}</div>
           <div v-if="selectedPersonas.length > 0" class="active-agents">
             <q-icon name="people" size="xs" />
             <span>{{ selectedPersonas.length }} agent(s) active</span>
@@ -16,12 +16,11 @@
         <q-btn
           flat
           dense
-          icon="badge"
-          @click="openUserPersonaDialog"
+          icon="edit"
+          @click="openSessionMetaDialog"
           class="q-mr-md"
         >
-          <q-tooltip>Edit your roleplay persona</q-tooltip>
-          <q-badge v-if="userPersona" color="positive" floating>✓</q-badge>
+          <q-tooltip>Edit session details</q-tooltip>
         </q-btn>
         <q-select
           v-model="selectedPersonas"
@@ -424,65 +423,27 @@
       </q-card>
     </q-dialog>
 
-    <!-- User Persona Dialog -->
-    <q-dialog v-model="showUserPersonaDialog">
+    <!-- Session Meta Dialog -->
+    <q-dialog v-model="showSessionMetaDialog">
       <q-card style="min-width: 450px">
-        <q-card-section class="bg-gradient-primary text-white">
-          <div class="text-h6">
-            <q-icon name="badge" class="q-mr-sm" />
-            Your Roleplay Persona
-          </div>
-          <div class="text-caption">
-            Define who you are in this conversation
-          </div>
-        </q-card-section>
-
         <q-card-section>
-          <q-input
-            v-model="userPersonaInput"
-            outlined
-            autogrow
-            type="textarea"
-            label="Describe your character"
-            placeholder="e.g., A fearless space explorer seeking ancient artifacts..."
-            hint="This helps agents understand your role in the roleplay"
-            :maxlength="500"
-            counter
-            rows="4"
-          >
-            <template v-slot:prepend>
-              <q-icon name="person" />
-            </template>
-          </q-input>
-
-          <div class="q-mt-md">
-            <div class="text-caption text-grey-7 q-mb-sm">Quick templates:</div>
-            <div class="persona-templates">
-              <q-chip
-                v-for="template in personaTemplates"
-                :key="template.value"
-                clickable
-                @click="userPersonaInput = template.label"
-                color="primary"
-                outline
-                size="sm"
-              >
-                {{ template.label }}
-              </q-chip>
+          <div class="text-h6">Edit Session Details</div>
+        </q-card-section>
+        <q-card-section class="q-pt-none">
+          <q-input v-model="sessionTitle" outlined dense label="Session Title" maxlength="255" />
+          <div class="row q-col-gutter-md q-mt-sm">
+            <div class="col-6">
+              <q-input v-model="sessionDisplayName" outlined dense label="Your display name" maxlength="128" />
+            </div>
+            <div class="col-6">
+              <q-input v-model="sessionHandle" outlined dense label="Your handle (e.g., alice)" maxlength="128" prefix="@" />
             </div>
           </div>
+          <q-input v-model="userPersonaInput" outlined autogrow type="textarea" label="Describe yourself" class="q-mt-md" />
         </q-card-section>
-
         <q-card-actions align="right">
-          <q-btn flat label="Clear" color="negative" @click="clearUserPersona" v-if="userPersona" />
           <q-btn flat label="Cancel" color="grey" v-close-popup />
-          <q-btn
-            flat
-            label="Save"
-            color="primary"
-            @click="saveUserPersona"
-            :disable="!userPersonaInput.trim()"
-          />
+          <q-btn flat label="Save" color="primary" @click="saveSessionMeta" />
         </q-card-actions>
       </q-card>
     </q-dialog>
@@ -490,10 +451,20 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed, nextTick } from 'vue'
+import { ref, onMounted, computed, nextTick, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useQuasar, QScrollArea } from 'quasar'
-import { getMessages, sendMessage, getPersonas, type Message, type Persona, authState } from '../api'
+import { 
+  getMessages, 
+  sendMessage, 
+  getPersonas, 
+  getSession,
+  updateSessionParticipants,
+  updateSessionMeta,
+  type Message, 
+  type Persona, 
+  authState 
+} from '../api'
 import { useWebSocket, createChatWebSocketUrl, type WebSocketMessage } from '../websocket'
 
 const $q = useQuasar()
@@ -516,13 +487,18 @@ const showAgentDialog = ref(false)
 const showTemplatesDialog = ref(false)
 const showAttachmentDialog = ref(false)
 const showPersonaDialog = ref(false)
-const showUserPersonaDialog = ref(false)
 const selectedPersona = ref<Persona | null>(null)
 const agentSearchQuery = ref('')
 
 // User persona
 const userPersona = ref<string>('')
 const userPersonaInput = ref<string>('')
+
+// Session metadata
+const sessionTitle = ref<string>('')
+const sessionDisplayName = ref<string>('')
+const sessionHandle = ref<string>('')
+const showSessionMetaDialog = ref<boolean>(false)
 
 // Attachment handling
 const newAttachment = ref<File[] | null>(null)
@@ -556,13 +532,6 @@ const simplePrompts = [
   { value: 'more', label: 'Tell me more' },
 ]
 
-const personaTemplates = [
-  { value: 'hero', label: 'A fearless hero on a quest' },
-  { value: 'detective', label: 'A sharp-minded detective' },
-  { value: 'merchant', label: 'A cunning merchant' },
-  { value: 'scholar', label: 'A wise scholar' },
-  { value: 'adventurer', label: 'A curious adventurer' },
-]
 
 // Agent colors for visual distinction
 const agentColorMap = new Map<string, string>()
@@ -674,9 +643,10 @@ const { connect: connectWebSocket } = useWebSocket({
 const loadData = async () => {
   loading.value = true
   try {
-    const [msgs, personas] = await Promise.all([
+    const [msgs, personas, sessionData] = await Promise.all([
       getMessages(sessionId),
-      getPersonas(authState.tenantId)
+      getPersonas(authState.tenantId),
+      getSession(sessionId)
     ])
     // 处理 API 可能返回对象包含数组的情况
     const msgsData: any = msgs
@@ -684,10 +654,18 @@ const loadData = async () => {
     messages.value = messageArray.map((m: Message) => ({ ...m, feedback: undefined }))
     availablePersonas.value = personas
     
-    // 获取用户画像
-    if (msgsData?.user_persona) {
-      userPersona.value = msgsData.user_persona
-      userPersonaInput.value = msgsData.user_persona
+    // 恢复会话的 Target Agents (participants)
+    if (sessionData.participants && sessionData.participants.length > 0) {
+      selectedPersonas.value = sessionData.participants.map(p => p.handle)
+    }
+    
+    // 获取并填充会话元信息
+    sessionTitle.value = sessionData.title || ''
+    sessionDisplayName.value = sessionData.user_display_name || ''
+    sessionHandle.value = sessionData.user_handle || ''
+    if (sessionData.user_persona || msgsData?.user_persona) {
+      userPersona.value = (sessionData.user_persona || msgsData.user_persona)
+      userPersonaInput.value = userPersona.value
     }
     
     await nextTick()
@@ -884,69 +862,25 @@ const removeAttachment = (index: number) => {
 }
 
 // User persona management
-const openUserPersonaDialog = () => {
-  userPersonaInput.value = userPersona.value
-  showUserPersonaDialog.value = true
+const openSessionMetaDialog = () => {
+  showSessionMetaDialog.value = true
 }
 
-const saveUserPersona = async () => {
-  const newPersona = userPersonaInput.value.trim()
-  if (!newPersona) return
-
+const saveSessionMeta = async () => {
   try {
-    // 调用 API 更新用户画像
-    await fetch(`/api/sessions/${sessionId}`, {
-      method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ user_persona: newPersona })
+    await updateSessionMeta(sessionId, {
+      title: sessionTitle.value,
+      user_display_name: sessionDisplayName.value,
+      user_handle: sessionHandle.value,
+      user_persona: userPersonaInput.value,
     })
 
-    userPersona.value = newPersona
-    showUserPersonaDialog.value = false
-    $q.notify({
-      type: 'positive',
-      message: 'Your roleplay persona has been updated',
-      position: 'top',
-      timeout: 2000
-    })
+    userPersona.value = userPersonaInput.value
+    showSessionMetaDialog.value = false
+    $q.notify({ type: 'positive', message: 'Session updated', position: 'top', timeout: 1500 })
   } catch (e) {
-    console.error('Failed to update user persona:', e)
-    $q.notify({
-      type: 'negative',
-      message: 'Failed to save persona',
-      position: 'top'
-    })
-  }
-}
-
-const clearUserPersona = async () => {
-  try {
-    await fetch(`/api/sessions/${sessionId}`, {
-      method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ user_persona: null })
-    })
-
-    userPersona.value = ''
-    userPersonaInput.value = ''
-    showUserPersonaDialog.value = false
-    $q.notify({
-      type: 'info',
-      message: 'Roleplay persona cleared',
-      position: 'top',
-      timeout: 2000
-    })
-  } catch (e) {
-    console.error('Failed to clear user persona:', e)
-    $q.notify({
-      type: 'negative',
-      message: 'Failed to clear persona',
-      position: 'top'
-    })
+    console.error('Failed to update session meta:', e)
+    $q.notify({ type: 'negative', message: 'Failed to update session', position: 'top' })
   }
 }
 
@@ -960,6 +894,30 @@ onMounted(() => {
   loadData()
   connectWebSocket()
 })
+
+// Watch for Target Agents changes and persist to backend
+watch(selectedPersonas, async (newValue, oldValue) => {
+  // Skip initial load (when oldValue is undefined)
+  if (oldValue === undefined) return
+  
+  // Skip if personas haven't loaded yet
+  if (availablePersonas.value.length === 0) return
+  
+  try {
+    // Map handles to persona IDs
+    const personaIds = newValue
+      .map(handle => availablePersonas.value.find(p => p.handle === handle)?.id)
+      .filter((id): id is number => id !== undefined)
+    
+    // Update backend
+    await updateSessionParticipants(sessionId, personaIds)
+    
+    console.log('Session participants updated:', personaIds)
+  } catch (e) {
+    console.error('Failed to update session participants:', e)
+    // Optionally notify user, but don't block the UI
+  }
+}, { deep: true })
 </script>
 
 <style scoped>
@@ -1273,12 +1231,6 @@ onMounted(() => {
   }
 }
 
-/* User Persona Templates */
-.persona-templates {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
 
 /* Responsive */
 @media (max-width: 768px) {

@@ -1,4 +1,7 @@
+import { Dark, setCssVar } from 'quasar'
+import { watch } from 'vue'
 import themeConfig from './assets/helpful_warmth_theme.json'
+import darkThemeConfig from './assets/helpful_warmth_theme_dark.json'
 
 export interface Theme {
   id: string
@@ -29,13 +32,35 @@ export interface Theme {
   }
 }
 
-export const theme: Theme = themeConfig as Theme
+export const lightTheme: Theme = themeConfig as Theme
+export const darkTheme: Theme = darkThemeConfig as Theme
+
+export const currentTheme = { ...lightTheme }
 
 // Apply theme to document
-export const applyTheme = () => {
+export const applyTheme = (isDark: boolean) => {
+  const theme = isDark ? darkTheme : lightTheme
   const root = document.documentElement
   
-  // Apply colors
+  // Update currentTheme object
+  Object.assign(currentTheme, theme)
+
+  // Update Quasar Brand Colors
+  setCssVar('primary', theme.colors.primary)
+  setCssVar('secondary', theme.colors.secondary)
+  setCssVar('accent', theme.colors.accent)
+  setCssVar('positive', theme.colors.success)
+  setCssVar('negative', theme.colors.error)
+  setCssVar('info', theme.colors.info)
+  setCssVar('warning', theme.colors.warning)
+
+  // Update Quasar Dark Mode Backgrounds (optional, but good for consistency)
+  if (isDark) {
+    setCssVar('dark-page', theme.colors.background)
+    setCssVar('dark', theme.colors.surface)
+  }
+
+  // Apply Custom CSS Variables
   root.style.setProperty('--color-primary', theme.colors.primary)
   root.style.setProperty('--color-secondary', theme.colors.secondary)
   root.style.setProperty('--color-accent', theme.colors.accent)
@@ -58,9 +83,18 @@ export const applyTheme = () => {
   root.style.setProperty('--shadow', theme.ui.shadow)
 }
 
-// Get color by name
-export const getColor = (name: keyof Theme['colors']): string => {
-  return theme.colors[name]
+export const initTheme = () => {
+  // Set initial Dark mode preference to auto
+  Dark.set('auto')
+
+  watch(() => Dark.isActive, (val) => {
+    applyTheme(val)
+  }, { immediate: true })
 }
 
-export default theme
+// Get color by name
+export const getColor = (name: keyof Theme['colors']): string => {
+  return currentTheme.colors[name]
+}
+
+export default currentTheme

@@ -11,7 +11,10 @@
           :key="msg.id"
           :content="msg.content"
           :align="msg.sender === 'user' ? 'right' : 'left'"
-          :avatarConfig="{ displayName: msg.sender }"
+          :avatarConfig="{ 
+            displayName: msg.sender,
+            style: { backgroundColor: getAvatarColor(msg.sender) }
+          }"
           class="q-mb-md"
         />
       </div>
@@ -59,6 +62,7 @@ import { ref, onMounted, onUnmounted, nextTick } from 'vue'
 import { useRoute } from 'vue-router'
 import { useQuasar } from 'quasar'
 import { getMessages, sendMessage, getPersonas, type Message, type Persona, authState } from '../api'
+import { getAvatarColor } from '../utils/avatarColor'
 
 const route = useRoute()
 const $q = useQuasar()

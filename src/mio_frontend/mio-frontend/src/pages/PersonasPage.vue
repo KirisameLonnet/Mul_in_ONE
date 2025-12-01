@@ -17,7 +17,7 @@
     </div>
 
     <!-- Embedding Config Section -->
-    <q-card class="q-mb-md bg-amber-1">
+    <q-card class="q-mb-md" :class="$q.dark.isActive ? 'bg-grey-9' : 'bg-amber-1'">
       <q-card-section>
         <div class="text-h6 q-mb-sm">
           <q-icon name="settings" class="q-mr-sm" />

@@ -20,15 +20,37 @@ class MessagePayload(BaseModel):
 
 class SessionUpdatePayload(BaseModel):
     user_persona: Optional[str] = None
+    title: Optional[str] = None
+    user_display_name: Optional[str] = None
+    user_handle: Optional[str] = None
+
+
+class SessionParticipantsPayload(BaseModel):
+    persona_ids: List[int]
 
 
 def _serialize_session(record: SessionRecord) -> dict[str, object | None]:
+    participants_data = None
+    if record.participants:
+        participants_data = [
+            {
+                "id": p.id,
+                "name": p.name,
+                "handle": p.handle,
+            }
+            for p in record.participants
+        ]
+
     return {
         "id": record.id,
         "tenant_id": record.tenant_id,
         "user_id": record.user_id,
         "created_at": record.created_at.isoformat(),
         "user_persona": record.user_persona,
+        "title": getattr(record, "title", None),
+        "user_display_name": getattr(record, "user_display_name", None),
+        "user_handle": getattr(record, "user_handle", None),
+        "participants": participants_data,
     }
 
 
@@ -37,9 +59,28 @@ async def create_session(
     tenant_id: str,
     user_id: str,
     user_persona: str | None = None,
+    title: str | None = None,
+    user_display_name: str | None = None,
+    user_handle: str | None = None,
+    initial_persona_ids: List[int] | None = None,
     service: SessionService = Depends(get_session_service),
 ):
-    session_id = await service.create_session(tenant_id=tenant_id, user_id=user_id, user_persona=user_persona)
+    session_id = await service.create_session(
+        tenant_id=tenant_id,
+        user_id=user_id,
+        user_persona=user_persona,
+        initial_persona_ids=initial_persona_ids,
+    )
+    
+    # Update metadata if any were provided
+    if title or user_display_name or user_handle:
+        await service.update_session_metadata(
+            session_id,
+            title=title,
+            user_display_name=user_display_name,
+            user_handle=user_handle,
+        )
+    
     return {"session_id": session_id}
 
 
@@ -112,7 +153,27 @@ async def update_session(
     service: SessionService = Depends(get_session_service),
 ):
     try:
-        record = await service.update_user_persona(session_id, payload.user_persona)
+        # If only user_persona provided and others are None, both paths lead to same update
+        record = await service.update_session_metadata(
+            session_id,
+            title=payload.title,
+            user_display_name=payload.user_display_name,
+            user_handle=payload.user_handle,
+            user_persona=payload.user_persona,
+        )
+    except SessionNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Session not found") from exc
+    return _serialize_session(record)
+
+
+@router.put("/sessions/{session_id}/participants", status_code=status.HTTP_200_OK)
+async def update_session_participants(
+    session_id: str,
+    payload: SessionParticipantsPayload,
+    service: SessionService = Depends(get_session_service),
+):
+    try:
+        record = await service.update_session_participants(session_id, payload.persona_ids)
     except SessionNotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Session not found") from exc
     return _serialize_session(record)

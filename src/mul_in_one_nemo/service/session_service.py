@@ -190,8 +190,17 @@ class SessionService:
         self._runtimes: Dict[str, SessionRuntime] = {}
         self._history_limit = history_limit
 
-    async def create_session(self, tenant_id: str, user_id: str, *, user_persona: str | None = None) -> str:
-        record = await self._repository.create(tenant_id, user_id, user_persona=user_persona)
+    async def create_session(
+        self,
+        tenant_id: str,
+        user_id: str,
+        *,
+        user_persona: str | None = None,
+        initial_persona_ids: List[int] | None = None,
+    ) -> str:
+        record = await self._repository.create(
+            tenant_id, user_id, user_persona=user_persona, initial_persona_ids=initial_persona_ids or []
+        )
         self._ensure_runtime(record)
         return record.id
 
@@ -204,7 +213,20 @@ class SessionService:
         history_payload = [{"sender": r.sender, "content": r.content} for r in history_records]
         if record.user_persona:
             history_payload.insert(0, {"sender": "user_persona", "content": record.user_persona})
-        enriched_message = replace(message, history=history_payload, user_persona=record.user_persona)
+        # Propagate current session participants to the runtime as target handles
+        target_personas = None
+        if record.participants:
+            try:
+                target_personas = [p.handle for p in record.participants if getattr(p, "handle", None)]
+            except Exception:
+                target_personas = None
+
+        enriched_message = replace(
+            message,
+            history=history_payload,
+            user_persona=record.user_persona,
+            target_personas=target_personas,
+        )
         runtime = self._ensure_runtime(record)
         preview = (message.content or "").strip()
         preview = preview[:80] + ("…" if len(preview) > 80 else "")
@@ -226,6 +248,36 @@ class SessionService:
     async def update_user_persona(self, session_id: str, user_persona: str | None) -> SessionRecord:
         try:
             record = await self._repository.update_user_persona(session_id, user_persona)
+        except ValueError as exc:
+            raise SessionNotFoundError(session_id) from exc
+        self._ensure_runtime(record)
+        return record
+
+    async def update_session_participants(self, session_id: str, persona_ids: List[int]) -> SessionRecord:
+        try:
+            record = await self._repository.update_session_participants(session_id, persona_ids)
+        except ValueError as exc:
+            raise SessionNotFoundError(session_id) from exc
+        self._ensure_runtime(record)
+        return record
+
+    async def update_session_metadata(
+        self,
+        session_id: str,
+        *,
+        title: str | None = None,
+        user_display_name: str | None = None,
+        user_handle: str | None = None,
+        user_persona: str | None = None,
+    ) -> SessionRecord:
+        try:
+            record = await self._repository.update_session_metadata(
+                session_id,
+                title=title,
+                user_display_name=user_display_name,
+                user_handle=user_handle,
+                user_persona=user_persona,
+            )
         except ValueError as exc:
             raise SessionNotFoundError(session_id) from exc
         self._ensure_runtime(record)

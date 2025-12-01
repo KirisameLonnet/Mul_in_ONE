@@ -29,6 +29,9 @@ class PersonaDialogueInput(BaseModel):
     user_message: str = Field(default="", description="Latest user message")
     persona_id: Optional[int] = Field(default=None, description="Persona ID used for RAG retrieval context")
     active_participants: Optional[List[str]] = Field(default=None, description="List of active participants in this conversation (handles)")
+    user_display_name: Optional[str] = Field(default=None, description="User's display name in this session")
+    user_handle: Optional[str] = Field(default=None, description="User's handle in this session")
+    user_persona: Optional[str] = Field(default=None, description="User's character description")
 
 
 class PersonaDialogueOutput(BaseModel):
@@ -74,6 +77,24 @@ async def persona_dialogue_function(config: PersonaDialogueFunctionConfig, build
         persona_id = input_data.persona_id
         active_participants = input_data.active_participants or []
 
+        # Build user identity info
+        user_info = ""
+        user_display_name = input_data.user_display_name
+        user_handle = input_data.user_handle
+        user_persona_desc = input_data.user_persona
+        
+        if user_display_name or user_handle or user_persona_desc:
+            user_name_part = user_display_name or "用户"
+            user_handle_part = f" (@{user_handle})" if user_handle else ""
+            user_full_name = f"{user_name_part}{user_handle_part}"
+            
+            user_info = f"""【用户身份信息】
+对话中的用户是：{user_full_name}
+"""
+            if user_persona_desc:
+                user_info += f"用户的角色描述：{user_persona_desc}\n"
+            user_info += "\n"
+        
         # Build participant list info
         participants_info = ""
         if active_participants:
@@ -88,7 +109,7 @@ async def persona_dialogue_function(config: PersonaDialogueFunctionConfig, build
 
 你正在参与一个多人自由对话。请注意：
 
-{participants_info}【对话规则】
+{user_info}{participants_info}【对话规则】
 1. 这是自然的群聊对话，不是一问一答。
 2. 你可以：
    - 回应其他人的观点（不需要被 @ 也可以回应）
@@ -148,6 +169,9 @@ async def persona_dialogue_function(config: PersonaDialogueFunctionConfig, build
         # 消息优先级：系统提示 > 历史 > 用户消息
         for message in history[-config.memory_window:]:
             speaker = message.get("speaker", "unknown")
+            # 如果说话者是 "user"，使用用户的实际显示名称
+            if speaker == "user" and input_data.user_display_name:
+                speaker = input_data.user_display_name
             content = message.get("content", "")
             messages.append(HumanMessage(content=f"{speaker}: {content}"))
 

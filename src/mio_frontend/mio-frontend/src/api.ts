@@ -54,13 +54,32 @@ export interface Session {
   user_id: string;
   created_at: string;
   user_persona?: string;
+  title?: string | null;
+  user_display_name?: string | null;
+  user_handle?: string | null;
+  participants?: Array<{
+    id: number;
+    name: string;
+    handle: string;
+  }>;
 }
 
 // ...existing code...
-export const createSession = async (user_persona?: string): Promise<string> => {
+export const createSession = async (
+  user_persona?: string,
+  title?: string,
+  user_display_name?: string,
+  user_handle?: string
+): Promise<string> => {
   // Params injected by interceptor
+  const params: any = {};
+  if (user_persona) params.user_persona = user_persona;
+  if (title) params.title = title;
+  if (user_display_name) params.user_display_name = user_display_name;
+  if (user_handle) params.user_handle = user_handle;
+  
   const response = await api.post<{ session_id: string }>('/sessions', null, {
-    params: user_persona ? { user_persona } : {}
+    params: Object.keys(params).length > 0 ? params : undefined
   });
   return response.data.session_id;
 };
@@ -69,6 +88,30 @@ export const getSessions = async (): Promise<Session[]> => {
   const response = await api.get<Session[]>('/sessions');
   return response.data;
 }
+
+export const getSession = async (session_id: string): Promise<Session> => {
+  const response = await api.get<Session>(`/sessions/${session_id}`);
+  return response.data;
+};
+
+export const updateSessionParticipants = async (
+  session_id: string,
+  persona_ids: number[]
+): Promise<Session> => {
+  const response = await api.put<Session>(
+    `/sessions/${session_id}/participants`,
+    { persona_ids }
+  );
+  return response.data;
+};
+
+export const updateSessionMeta = async (
+  session_id: string,
+  payload: Partial<Pick<Session, 'title' | 'user_display_name' | 'user_handle' | 'user_persona'>>
+): Promise<Session> => {
+  const response = await api.patch<Session>(`/sessions/${session_id}`, payload);
+  return response.data;
+};
 
 export const getMessages = async (session_id: string, limit: number = 50): Promise<Message[]> => {
   const response = await api.get<Message[]>(`/sessions/${session_id}/messages`, {

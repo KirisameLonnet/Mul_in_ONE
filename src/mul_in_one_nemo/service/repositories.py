@@ -63,6 +63,17 @@ class SessionRepository(ABC):
     @abstractmethod
     async def update_session_participants(self, session_id: str, persona_ids: List[int]) -> SessionRecord: ...
 
+    @abstractmethod
+    async def update_session_metadata(
+        self,
+        session_id: str,
+        *,
+        title: str | None = None,
+        user_display_name: str | None = None,
+        user_handle: str | None = None,
+        user_persona: str | None = None,
+    ) -> SessionRecord: ...
+
 
 class BaseSQLAlchemyRepository:
     """Shared helpers for repositories backed by SQLAlchemy async sessions."""
@@ -114,12 +125,31 @@ class InMemorySessionRepository(SessionRepository):
                      initial_persona_ids: List[int] = []) -> SessionRecord:
         async with self._lock:
             session_id = f"sess_{tenant_id}_{uuid.uuid4().hex[:8]}"
+            participants = []
+            if initial_persona_ids:
+                for pid in initial_persona_ids:
+                    participants.append(
+                        PersonaRecord(
+                            id=pid,
+                            tenant_id=tenant_id,
+                            name=f"persona_{pid}",
+                            handle=f"persona_{pid}",
+                            prompt="",
+                            tone="",
+                            proactivity=0.0,
+                            memory_window=0,
+                            max_agents_per_turn=0,
+                            is_default=False,
+                        )
+                    )
+
             record = SessionRecord(
                 id=session_id,
                 tenant_id=tenant_id,
                 user_id=user_id,
                 created_at=datetime.now(timezone.utc),
                 user_persona=user_persona,
+                participants=participants or None,
             )
             self._records[session_id] = record
             return record
@@ -177,9 +207,60 @@ class InMemorySessionRepository(SessionRepository):
             record = self._records.get(session_id)
             if record is None:
                 raise ValueError("Session not found")
-            # In-memory implementation: just store the persona IDs (no actual persona lookup)
-            # Real implementation would need persona repository access
-            return record
+            participants = []
+            for pid in persona_ids:
+                participants.append(
+                    PersonaRecord(
+                        id=pid,
+                        tenant_id=record.tenant_id,
+                        name=f"persona_{pid}",
+                        handle=f"persona_{pid}",
+                        prompt="",
+                        tone="",
+                        proactivity=0.0,
+                        memory_window=0,
+                        max_agents_per_turn=0,
+                        is_default=False,
+                    )
+                )
+
+            updated = SessionRecord(
+                id=record.id,
+                tenant_id=record.tenant_id,
+                user_id=record.user_id,
+                created_at=record.created_at,
+                user_persona=record.user_persona,
+                participants=participants,
+            )
+            self._records[session_id] = updated
+            return updated
+
+    async def update_session_metadata(
+        self,
+        session_id: str,
+        *,
+        title: str | None = None,
+        user_display_name: str | None = None,
+        user_handle: str | None = None,
+        user_persona: str | None = None,
+    ) -> SessionRecord:
+        async with self._lock:
+            record = self._records.get(session_id)
+            if record is None:
+                raise ValueError("Session not found")
+            updated = SessionRecord(
+                id=record.id,
+                tenant_id=record.tenant_id,
+                user_id=record.user_id,
+                created_at=record.created_at,
+                user_persona=user_persona if user_persona is not None else record.user_persona,
+                participants=record.participants,
+                title=title if title is not None else getattr(record, "title", None),
+                user_display_name=(user_display_name if user_display_name is not None else getattr(record, "user_display_name", None)),
+                user_handle=(user_handle if user_handle is not None else getattr(record, "user_handle", None)),
+            )
+            self._records[session_id] = updated
+            return updated
 
 
 class PersonaDataRepository(ABC):
@@ -463,6 +544,40 @@ class SQLAlchemySessionRepository(SessionRepository, BaseSQLAlchemyRepository):
             logger.info("Session participants updated session=%s count=%s", session_id, len(participants))
             return self._to_session_record(session_row, tenant_name, user_email, participants)
 
+    async def update_session_metadata(
+        self,
+        session_id: str,
+        *,
+        title: str | None = None,
+        user_display_name: str | None = None,
+        user_handle: str | None = None,
+        user_persona: str | None = None,
+    ) -> SessionRecord:
+        async with self._session_scope() as db:
+            stmt = (
+                select(SessionRow, TenantRow.name, UserRow.email)
+                .join(TenantRow, SessionRow.tenant_id == TenantRow.id)
+                .join(UserRow, SessionRow.user_id == UserRow.id)
+                .where(SessionRow.id == session_id)
+                .options(selectinload(SessionRow.participants))
+            )
+            result = await db.execute(stmt)
+            row = result.first()
+            if row is None:
+                raise ValueError("Session not found")
+            session_row, tenant_name, user_email = row
+            if title is not None:
+                session_row.title = title
+            if user_display_name is not None:
+                session_row.user_display_name = user_display_name
+            if user_handle is not None:
+                session_row.user_handle = user_handle
+            if user_persona is not None:
+                session_row.user_persona = user_persona
+            db.add(session_row)
+            await db.flush()
+            return self._to_session_record(session_row, tenant_name, user_email, session_row.participants)
+
     @staticmethod
     def _generate_session_id(tenant_id: str) -> str:
         return f"sess_{tenant_id}_{uuid.uuid4().hex[:8]}"
@@ -500,7 +615,10 @@ class SQLAlchemySessionRepository(SessionRepository, BaseSQLAlchemyRepository):
             user_id=user_email,
             created_at=self._normalize_dt(row.created_at),
             user_persona=row.user_persona,
-            participants=[SQLAlchemyPersonaRepository._to_persona_record(p, tenant_name, None) for p in participants]
+            participants=[SQLAlchemyPersonaRepository._to_persona_record(p, tenant_name, None) for p in participants],
+            title=getattr(row, "title", None),
+            user_display_name=getattr(row, "user_display_name", None),
+            user_handle=getattr(row, "user_handle", None),
         )
 
     def _to_message_record(self, row: SessionMessageRow) -> MessageRecord:

@@ -6,6 +6,7 @@
         <q-toolbar-title>
           MIO Dashboard
         </q-toolbar-title>
+        <q-btn flat round :icon="$q.dark.isActive ? 'dark_mode' : 'light_mode'" @click="toggleDarkMode" class="q-mr-sm" />
         <div class="q-mr-md">{{ username }} ({{ tenantId }})</div>
         <q-btn flat round icon="logout" @click="handleLogout" />
       </q-toolbar>
@@ -64,16 +65,22 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
+import { useQuasar } from 'quasar'
 import { authState, logout } from '../api'
 
 const leftDrawerOpen = ref(false)
 const router = useRouter()
+const $q = useQuasar()
 
 const username = computed(() => authState.username)
 const tenantId = computed(() => authState.tenantId)
 
 function toggleLeftDrawer () {
   leftDrawerOpen.value = !leftDrawerOpen.value
+}
+
+function toggleDarkMode() {
+  $q.dark.toggle()
 }
 
 function handleLogout() {

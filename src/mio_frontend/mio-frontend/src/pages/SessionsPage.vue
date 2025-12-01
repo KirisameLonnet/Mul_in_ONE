@@ -46,40 +46,27 @@
         </q-card-section>
 
         <q-card-section>
-          <div class="text-subtitle2 q-mb-sm">Optional: Set your roleplay persona</div>
+          <q-input v-model="newSessionTitle" outlined dense label="Session Title (optional)" maxlength="255" class="q-mb-md" />
+          <div class="row q-col-gutter-md q-mb-md">
+            <div class="col-6">
+              <q-input v-model="newSessionDisplayName" outlined dense label="Your display name (optional)" maxlength="128" />
+            </div>
+            <div class="col-6">
+              <q-input v-model="newSessionHandle" outlined dense label="Your handle (optional)" maxlength="128" prefix="@" />
+            </div>
+          </div>
           <q-input
             v-model="newSessionPersona"
             outlined
             autogrow
             type="textarea"
-            label="Your character (optional)"
-            placeholder="e.g., A fearless space explorer..."
-            hint="Define who you are in this roleplay session"
+            label="Describe yourself (optional)"
+            placeholder="Help agents understand who you are..."
+            hint="This helps agents understand your role in the conversation"
             :maxlength="500"
             counter
             rows="3"
-          >
-            <template v-slot:prepend>
-              <q-icon name="badge" />
-            </template>
-          </q-input>
-
-          <div class="q-mt-md">
-            <div class="text-caption text-grey-7 q-mb-sm">Quick templates:</div>
-            <div class="persona-templates">
-              <q-chip
-                v-for="template in personaTemplates"
-                :key="template.value"
-                clickable
-                @click="newSessionPersona = template.label"
-                color="primary"
-                outline
-                size="sm"
-              >
-                {{ template.label }}
-              </q-chip>
-            </div>
-          </div>
+          />
         </q-card-section>
 
         <q-card-actions align="right">
@@ -100,24 +87,19 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { getSessions, createSession, type Session, authState } from '../api'
+import { getSessions, createSession, type Session } from '../api'
 import { useQuasar } from 'quasar'
 
 const sessions = ref<Session[]>([])
 const loading = ref(false)
 const creating = ref(false)
 const showCreateDialog = ref(false)
+const newSessionTitle = ref('')
+const newSessionDisplayName = ref('')
+const newSessionHandle = ref('')
 const newSessionPersona = ref('')
 const router = useRouter()
 const $q = useQuasar()
-
-const personaTemplates = [
-  { value: 'hero', label: 'A fearless hero on a quest' },
-  { value: 'detective', label: 'A sharp-minded detective' },
-  { value: 'merchant', label: 'A cunning merchant' },
-  { value: 'scholar', label: 'A wise scholar' },
-  { value: 'adventurer', label: 'A curious adventurer' },
-]
 
 const loadSessions = async () => {
   loading.value = true
@@ -134,6 +116,9 @@ const loadSessions = async () => {
 }
 
 const openCreateSessionDialog = () => {
+  newSessionTitle.value = ''
+  newSessionDisplayName.value = ''
+  newSessionHandle.value = ''
   newSessionPersona.value = ''
   showCreateDialog.value = true
 }
@@ -142,7 +127,11 @@ const handleCreateSession = async () => {
   creating.value = true
   try {
     const persona = newSessionPersona.value.trim() || undefined
-    const newSessionId = await createSession(persona)
+    const title = newSessionTitle.value.trim() || undefined
+    const displayName = newSessionDisplayName.value.trim() || undefined
+    const handle = newSessionHandle.value.trim() || undefined
+    
+    const newSessionId = await createSession(persona, title, displayName, handle)
     showCreateDialog.value = false
     router.push(`/chat/${newSessionId}`)
   } catch (e) {
@@ -161,9 +150,4 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.persona-templates {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
 </style>

@@ -1,0 +1,28 @@
+{
+  "id": "tech-ai-dark",
+  "name": "Helpful Warmth Dark",
+  "description": "Dark mode inspired by Claude. Deep charcoal tones, soft text, comfortable contrast.",
+  "colors": {
+    "success": "#2AA830",
+    "warning": "#EEAD15",
+    "error": "#e57373",
+    "info": "#64b5f6",
+    "primary": "#813B26",
+    "secondary": "#7F7F7F",
+    "accent": "#D76745",
+    "background": "#121212",
+    "surface": "#1e1e1e",
+    "text": "#e0e0e0",
+    "muted": "#BABABA"
+  },
+  "typography": {
+    "headingFont": "\"Merriweather\", serif",
+    "bodyFont": "\"DM Sans\", sans-serif",
+    "scale": "medium"
+  },
+  "ui": {
+    "borderRadius": "1rem",
+    "borderWidth": "1px",
+    "shadow": "0 4px 6px -1px rgba(0, 0, 0, 0.5), 0 2px 4px -1px rgba(0, 0, 0, 0.3)"
+  }
+}

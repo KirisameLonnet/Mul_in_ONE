@@ -10,7 +10,6 @@ from typing import List, Optional, AsyncGenerator, Tuple
 import httpx
 from pydantic import BaseModel, Field, AnyUrl
 
-from nat.builder.framework_enum import LLMFrameworkEnum
 from nat.builder.function_info import FunctionInfo
 from nat.cli.register_workflow import register_function
 from nat.data_models.function import FunctionBaseConfig
@@ -75,7 +74,7 @@ class WebSearchToolConfig(FunctionBaseConfig, name="web_search_tool"):
     timeout_s: float = Field(default=8.0, ge=2.0, le=30.0)
 
 
-@register_function(config_type=WebSearchToolConfig, framework_wrappers=[LLMFrameworkEnum.LANGCHAIN])
+@register_function(config_type=WebSearchToolConfig)
 async def web_search_tool(config: WebSearchToolConfig, builder):  # builder present for NAT contract
     async def _single(input_data: WebSearchInput) -> WebSearchOutput:
         try:

@@ -29,6 +29,10 @@ class SessionParticipantsPayload(BaseModel):
     persona_ids: List[int]
 
 
+class BatchDeletePayload(BaseModel):
+    session_ids: List[str]
+
+
 def _serialize_session(record: SessionRecord) -> dict[str, object | None]:
     participants_data = None
     if record.participants:
@@ -177,6 +181,27 @@ async def update_session_participants(
     except SessionNotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Session not found") from exc
     return _serialize_session(record)
+
+
+@router.delete("/sessions/{session_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_session(
+    session_id: str,
+    service: SessionService = Depends(get_session_service),
+):
+    try:
+        await service.delete_session(session_id)
+    except SessionNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Session not found") from exc
+    return
+
+
+@router.post("/sessions/batch-delete", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_sessions(
+    payload: BatchDeletePayload,
+    service: SessionService = Depends(get_session_service),
+):
+    await service.delete_sessions(payload.session_ids)
+    return
 
 
 @router.websocket("/ws/sessions/{session_id}")

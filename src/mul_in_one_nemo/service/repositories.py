@@ -74,6 +74,12 @@ class SessionRepository(ABC):
         user_persona: str | None = None,
     ) -> SessionRecord: ...
 
+    @abstractmethod
+    async def delete_session(self, session_id: str) -> None: ...
+
+    @abstractmethod
+    async def delete_sessions(self, session_ids: List[str]) -> None: ...
+
 
 class BaseSQLAlchemyRepository:
     """Shared helpers for repositories backed by SQLAlchemy async sessions."""
@@ -261,6 +267,21 @@ class InMemorySessionRepository(SessionRepository):
             )
             self._records[session_id] = updated
             return updated
+
+    async def delete_session(self, session_id: str) -> None:
+        async with self._lock:
+            if session_id in self._records:
+                del self._records[session_id]
+            if session_id in self._messages:
+                del self._messages[session_id]
+
+    async def delete_sessions(self, session_ids: List[str]) -> None:
+        async with self._lock:
+            for session_id in session_ids:
+                if session_id in self._records:
+                    del self._records[session_id]
+                if session_id in self._messages:
+                    del self._messages[session_id]
 
 
 class PersonaDataRepository(ABC):
@@ -577,6 +598,29 @@ class SQLAlchemySessionRepository(SessionRepository, BaseSQLAlchemyRepository):
             db.add(session_row)
             await db.flush()
             return self._to_session_record(session_row, tenant_name, user_email, session_row.participants)
+
+    async def delete_session(self, session_id: str) -> None:
+        async with self._session_scope() as db:
+            stmt = select(SessionRow).where(SessionRow.id == session_id)
+            session_row = (await db.execute(stmt)).scalar_one_or_none()
+            if session_row:
+                await db.delete(session_row)
+                logger.info("Deleted session: %s", session_id)
+            else:
+                logger.warning("Session not found for deletion: %s", session_id)
+
+    async def delete_sessions(self, session_ids: List[str]) -> None:
+        async with self._session_scope() as db:
+            if not session_ids:
+                return
+            stmt = select(SessionRow).where(SessionRow.id.in_(session_ids))
+            rows = (await db.execute(stmt)).scalars().all()
+            if rows:
+                for row in rows:
+                    await db.delete(row)
+                logger.info("Deleted %d sessions", len(rows))
+            else:
+                logger.warning("No sessions found for batch deletion")
 
     @staticmethod
     def _generate_session_id(tenant_id: str) -> str:

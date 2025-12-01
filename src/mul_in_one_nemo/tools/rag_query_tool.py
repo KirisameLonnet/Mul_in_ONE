@@ -47,9 +47,11 @@ class RagQueryToolConfig(FunctionBaseConfig, name="rag_query_tool"):
     
     These fields are set at tool registration time or updated during
     session initialization to provide tenant/persona context.
+    Note: In multi-tenant scenarios, actual values are injected via
+    set_rag_context() at runtime, these are fallbacks only.
     """
-    tenant_id: Optional[str] = Field(default="default", description="Tenant ID for multi-tenant isolation")
-    persona_id: Optional[int] = Field(default=None, description="Persona ID for context scoping")
+    tenant_id: Optional[str] = Field(default=None, description="Tenant ID for multi-tenant isolation (fallback)")
+    persona_id: Optional[int] = Field(default=None, description="Persona ID for context scoping (fallback)")
 
 
 @register_function(config_type=RagQueryToolConfig)
@@ -65,15 +67,13 @@ async def rag_query_tool(config: RagQueryToolConfig, builder):
     
     async def _single(input_data: RagQueryInput) -> RagQueryOutput:
         try:
-            # Try config first, then fall back to context variable
-            tenant_id = config.tenant_id
-            persona_id = config.persona_id
+            # Always try context first (set by runtime adapter during conversation)
+            # This ensures correct tenant_id per request in multi-tenant scenarios
+            ctx_tenant, ctx_persona = get_rag_context()
             
-            # If not in config, try getting from context (set by runtime adapter)
-            if tenant_id is None or persona_id is None:
-                ctx_tenant, ctx_persona = get_rag_context()
-                tenant_id = tenant_id or ctx_tenant or "default"
-                persona_id = persona_id or ctx_persona
+            # Fall back to config if context not available (e.g., standalone tool usage)
+            tenant_id = ctx_tenant or config.tenant_id
+            persona_id = ctx_persona or config.persona_id
             
             if persona_id is None:
                 logger.warning("RagQueryTool called without persona_id in config or context")

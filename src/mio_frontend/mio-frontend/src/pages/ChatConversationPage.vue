@@ -18,7 +18,6 @@
           dense
           icon="edit"
           @click="openSessionMetaDialog"
-          class="q-mr-md"
         >
           <q-tooltip>Edit session details</q-tooltip>
         </q-btn>
@@ -944,6 +943,12 @@ watch(selectedPersonas, async (newValue, oldValue) => {
   display: flex;
   align-items: center;
   gap: 16px;
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
 }
 
 .header-title {

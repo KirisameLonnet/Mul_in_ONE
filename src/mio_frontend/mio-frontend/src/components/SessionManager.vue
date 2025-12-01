@@ -73,7 +73,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, nextTick } from 'vue';
+import { ref, onMounted, nextTick, onUnmounted } from 'vue';
 import { 
   getSessions, 
   createSession, 
@@ -85,6 +85,7 @@ import {
   type Persona,
   authState 
 } from '../api';
+import { useWebSocket, createChatWebSocketUrl, type WebSocketMessage } from '../websocket';
 
 const sessions = ref<Session[]>([]);
 const messages = ref<Message[]>([]);
@@ -96,8 +97,65 @@ const loading = ref(false);
 const newMessage = ref('');
 const messagesContainer = ref<HTMLElement | null>(null);
 
-// Polling interval
-let pollInterval: number | null = null;
+// WebSocket integration
+const { client: wsClient, connect: connectWs, close: closeWs } = useWebSocket({
+  url: '', // Will be set in enterSession
+  reconnect: true,
+  onMessage: handleWsMessage
+});
+
+function handleWsMessage(msg: WebSocketMessage) {
+  const { event, data } = msg;
+  
+  if (event === 'agent.chunk' || event === 'agent.end') {
+    const { message_id, sender, content, persisted_message_id } = data;
+    
+    // Find existing message by ID (temporary or persisted)
+    let existingMsg = messages.value.find(m => m.id === message_id);
+    
+    if (existingMsg) {
+      // Update existing message
+      // For chunks, we append. But wait, the backend might send the *delta* or the *full* content?
+      // Looking at session_service.py: 
+      // normalized = event if isinstance(event, dict) else {"event": "agent.chunk", "data": {"content": str(event)}}
+      // And in _handle_adapter_event:
+      // if event_type == "agent.chunk": tracker["buffer"].append(content); data["content"] = content
+      // So it sends the CHUNK (delta).
+      
+      // However, if we just append, we need to be careful about duplication if we re-fetch.
+      // But here we are in streaming mode.
+      
+      // Wait, if I look at `session_service.py`:
+      // `data["content"] = content` where content is the chunk.
+      // So yes, it is the delta.
+      
+      // BUT, for `agent.end`, it sends `final_content`.
+      
+      if (event === 'agent.chunk') {
+        existingMsg.content += content;
+        scrollToBottom();
+      } else if (event === 'agent.end') {
+        // Final update to ensure consistency
+        if (content) existingMsg.content = content;
+        // Update ID to persisted ID if available
+        if (persisted_message_id) {
+          existingMsg.id = persisted_message_id;
+        }
+      }
+    } else {
+      // Create new message
+      if (event === 'agent.chunk' || (event === 'agent.end' && content)) {
+        messages.value.push({
+          id: message_id,
+          sender: sender,
+          content: content || '',
+          timestamp: new Date().toISOString()
+        });
+        scrollToBottom();
+      }
+    }
+  }
+}
 
 const loadSessions = async () => {
   loading.value = true;
@@ -126,11 +184,66 @@ const enterSession = async (id: string) => {
   await loadPersonas();
   await refreshMessages();
   scrollToBottom();
-  startPolling();
+  
+  // Setup WebSocket
+  // We need to access the private 'url' property or recreate the client? 
+  // The useWebSocket composable creates a client instance. We can't easily change the URL of an existing client instance 
+  // if the class doesn't support it. 
+  // Looking at websocket.ts, the URL is set in constructor.
+  // So we should probably recreate the client or use a reactive URL if supported.
+  // The current useWebSocket implementation takes options in constructor.
+  // Let's manually manage the client instance here or modify useWebSocket to support url change.
+  // For now, I'll just manually close and create a new connection using the exposed client if possible, 
+  // but the `useWebSocket` returns a single client instance bound to the options.
+  
+  // Workaround: We'll just use the raw WebSocketClient class or create a new useWebSocket scope?
+  // Actually, let's just modify the client.url directly if it was public, but it's private.
+  // Let's just re-instantiate the logic here without the composable for full control, 
+  // OR (better) just use the client.close() and create a new one.
+  
+  // Let's use a ref for the client to allow replacement
+  if (wsClient.value) {
+    wsClient.value.close();
+  }
+  
+  // Re-initialize connection with new URL
+  // Since useWebSocket returns a static client object, we can't "change" its URL.
+  // We will implement a simple connect function here that creates a new WebSocket.
+  initWebSocket(id);
+};
+
+// Manual WS management since the composable is a bit rigid for dynamic URLs
+let activeWs: WebSocket | null = null;
+
+const initWebSocket = (sessionId: string) => {
+  if (activeWs) {
+    activeWs.close();
+  }
+  
+  const url = createChatWebSocketUrl(sessionId);
+  console.log('Connecting WS to', url);
+  
+  activeWs = new WebSocket(url);
+  
+  activeWs.onmessage = (event) => {
+    try {
+      const msg = JSON.parse(event.data);
+      handleWsMessage(msg);
+    } catch (e) {
+      console.error('WS parse error', e);
+    }
+  };
+  
+  activeWs.onclose = () => {
+    console.log('WS Closed');
+  };
 };
 
 const exitSession = () => {
-  stopPolling();
+  if (activeWs) {
+    activeWs.close();
+    activeWs = null;
+  }
   currentSessionId.value = null;
   loadSessions();
 };
@@ -167,9 +280,6 @@ const handleSend = async (content: string) => {
   if (!content.trim() || !currentSessionId.value) return;
   
   const targets = [...selectedPersonas.value];
-  // McInput auto clears, so we don't need to clear newMessage manually if we use autoClear prop
-  // But we are binding value, so we might need to update it.
-  // Actually McInput emits submit with the value.
   
   try {
     // Optimistic update
@@ -182,22 +292,12 @@ const handleSend = async (content: string) => {
     scrollToBottom();
 
     await sendMessage(currentSessionId.value, content, targets);
-    await refreshMessages();
+    // We don't need to refreshMessages immediately if WS is working, 
+    // but it's safe to do so to get the server-side ID of the user message.
+    // await refreshMessages(); 
   } catch (e) {
     alert('Failed to send message');
     console.error(e);
-  }
-};
-
-const startPolling = () => {
-  if (pollInterval) clearInterval(pollInterval);
-  pollInterval = window.setInterval(refreshMessages, 2000); // Poll every 2s
-};
-
-const stopPolling = () => {
-  if (pollInterval) {
-    clearInterval(pollInterval);
-    pollInterval = null;
   }
 };
 
@@ -210,6 +310,9 @@ const scrollToBottom = () => {
 };
 
 onMounted(loadSessions);
+onUnmounted(() => {
+  if (activeWs) activeWs.close();
+});
 </script>
 
 <style scoped>

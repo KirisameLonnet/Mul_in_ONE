@@ -20,6 +20,11 @@ from pymilvus import Collection, connections, utility, FieldSchema, CollectionSc
 # Import NAT-based adapter for multi-tenant RAG
 from .rag_adapter import RagAdapter
 
+try:
+    from nat.retriever.milvus.retriever import CollectionNotFoundError
+except ImportError:
+    CollectionNotFoundError = None
+
 # A temporary copy of web_utils from NeMo-Agent-Toolkit/scripts
 # This should be refactored into a common utility module.
 # --- Start of web_utils copy ---
@@ -161,6 +166,7 @@ class RAGService:
             model=api_config.get("model"),
             openai_api_base=api_config.get("base_url"),
             openai_api_key=api_config.get("api_key"),
+            request_timeout=30.0,  # 30秒超时
         )
 
     def _create_embedder_sync(self, persona_id: Optional[int] = None) -> OpenAIEmbeddings:
@@ -171,6 +177,7 @@ class RAGService:
             model=api_config.get("model"),
             openai_api_base=api_config.get("base_url"),
             openai_api_key=api_config.get("api_key"),
+            request_timeout=30.0,  # 30秒超时
         )
 
     async def _create_llm(self, persona_id: Optional[int] = None) -> OpenAI:
@@ -442,14 +449,48 @@ class RAGService:
 
             # Delete documents using the expression
             # Milvus delete operation is synchronous by nature in PyMilvus client
-            expr = f"source == '{source}'"
-            delete_result = collection.delete(expr)
+            # Note: For Milvus 2.3.x, we need to delete by primary key
+            # First query to get IDs, then delete by IDs
+            expr = f'source == "{source}"'
+            query_results = collection.query(expr=expr, output_fields=["document_id"])
+            if not query_results:
+                logger.info(f"No documents found with source='{source}' in '{collection_name}'.")
+                return
+            
+            ids_to_delete = [r["document_id"] for r in query_results]
+            delete_expr = f"document_id in {ids_to_delete}"
+            delete_result = collection.delete(delete_expr)
             
             logger.info(f"Successfully deleted {delete_result.delete_count} documents from '{collection_name}' with expression: '{expr}'.")
 
         except Exception as e:
             logger.error(f"Failed to delete documents by source in collection '{collection_name}': {e}")
             # Do not re-raise, just log, to avoid breaking the main flow on deletion failure
+
+
+    async def delete_collection(self, persona_id: int, tenant_id: str) -> None:
+        """
+        Deletes the entire Milvus collection for a specific persona.
+        """
+        from pymilvus import utility
+        
+        collection_name = f"{tenant_id}_persona_{persona_id}_rag"
+        logger.info(f"Attempting to delete collection: {collection_name}")
+
+        try:
+            # Connect to Milvus
+            connections.connect(alias="default", uri=DEFAULT_MILVUS_URI)
+
+            # Check if collection exists
+            if utility.has_collection(collection_name):
+                utility.drop_collection(collection_name)
+                logger.info(f"Successfully dropped collection: {collection_name}")
+            else:
+                logger.info(f"Collection '{collection_name}' does not exist. Skipping drop.")
+
+        except Exception as e:
+            logger.error(f"Failed to delete collection '{collection_name}': {e}")
+            # Do not re-raise, just log
 
 
     async def _create_retriever(self, persona_id: int, tenant_id: str, top_k: Optional[int] = None) -> Milvus:
@@ -505,6 +546,17 @@ class RAGService:
             return docs
             
         except Exception as e:
+            # Handle missing collection gracefully (return empty results)
+            is_collection_not_found = False
+            if CollectionNotFoundError and isinstance(e, CollectionNotFoundError):
+                is_collection_not_found = True
+            elif "Collection" in str(e) and "does not exist" in str(e):
+                is_collection_not_found = True
+            
+            if is_collection_not_found:
+                logger.warning(f"Collection not found for tenant={tenant_id} persona={persona_id}. Returning empty results.")
+                return []
+
             logger.error(f"Failed to retrieve documents: {e}", exc_info=True)
             raise
 

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from typing import Dict, Iterable
+import logging
 
 from nat.builder.workflow_builder import WorkflowBuilder
 from nat.llm.nim_llm import NIMModelConfig
@@ -16,6 +17,37 @@ from .persona import Persona
 from .persona_function import PersonaDialogueFunctionConfig
 from .tools.web_search_tool import WebSearchToolConfig
 from .tools.rag_query_tool import RagQueryToolConfig
+
+logger = logging.getLogger(__name__)
+
+# Monkey-patch ChatNVIDIA to add default timeout
+_original_chatnvidia_init = None
+
+def _patch_chatnvidia_init():
+    """为 ChatNVIDIA 添加默认 60 秒 timeout"""
+    global _original_chatnvidia_init
+    try:
+        from langchain_nvidia_ai_endpoints import ChatNVIDIA
+        if _original_chatnvidia_init is None:
+            _original_chatnvidia_init = ChatNVIDIA.__init__
+            
+            def patched_init(self, *args, **kwargs):
+                # 如果没有设置 timeout，默认 60 秒
+                if 'timeout' not in kwargs or kwargs['timeout'] is None:
+                    kwargs['timeout'] = 60.0
+                    logger.info(f"ChatNVIDIA: setting default timeout=60s")
+                return _original_chatnvidia_init(self, *args, **kwargs)
+            
+            ChatNVIDIA.__init__ = patched_init
+            logger.info("Successfully patched ChatNVIDIA with default timeout")
+    except ImportError:
+        logger.warning("langchain_nvidia_ai_endpoints not available, skipping ChatNVIDIA patch")
+    except Exception as e:
+        logger.error(f"Failed to patch ChatNVIDIA: {e}")
+
+
+# Apply patch on module import
+_patch_chatnvidia_init()
 
 
 class MultiAgentRuntime:

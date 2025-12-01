@@ -1,0 +1,51 @@
+# Milvus configuration file
+# Increase memory quotas for query and data operations
+
+queryNode:
+  gracefulStopTimeout: 30
+  cache:
+    enabled: true
+    memoryLimit: 2147483648  # 2GB for query cache
+
+dataNode:
+  flush:
+    insertBufSize: 16777216  # 16MB per flush
+
+quotaAndLimits:
+  enabled: true
+  quotaCenterCollectInterval: 3
+  ddl:
+    enabled: false
+  indexRate:
+    enabled: false
+  flushRate:
+    enabled: false
+  compactionRate:
+    enabled: false
+  dml:
+    enabled: true
+    insertRate:
+      max: -1  # unlimited
+    deleteRate:
+      max: -1  # unlimited
+  dql:
+    enabled: true
+    searchRate:
+      max: -1  # unlimited
+    queryRate:
+      max: -1  # unlimited
+  limitWriting:
+    # Triggers for memory protection, set higher thresholds
+    memProtectionEnabled: true
+    forceDeny: false
+    ttProtectionEnabled: false
+    diskProtectionEnabled: false
+    # Memory watermarks (percentage)
+    dataNodeMemoryLowWaterLevel: 0.85    # 85%
+    dataNodeMemoryHighWaterLevel: 0.95   # 95%
+    queryNodeMemoryLowWaterLevel: 0.85   # 85%
+    queryNodeMemoryHighWaterLevel: 0.95  # 95%
+
+common:
+  gracefulStopTimeout: 30
+  retentionDuration: 432000  # 5 days in seconds

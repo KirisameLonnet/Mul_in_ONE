@@ -283,6 +283,28 @@ class SessionService:
         self._ensure_runtime(record)
         return record
 
+    async def delete_session(self, session_id: str) -> None:
+        # Stop runtime if exists
+        runtime = self._runtimes.pop(session_id, None)
+        if runtime:
+            await runtime.stop()
+        
+        # Delete from repository
+        try:
+            await self._repository.delete_session(session_id)
+        except ValueError as exc:
+            raise SessionNotFoundError(session_id) from exc
+
+    async def delete_sessions(self, session_ids: List[str]) -> None:
+        # Stop runtimes if exist
+        for session_id in session_ids:
+            runtime = self._runtimes.pop(session_id, None)
+            if runtime:
+                await runtime.stop()
+        
+        # Delete from repository
+        await self._repository.delete_sessions(session_ids)
+
     def _ensure_runtime(self, record: SessionRecord) -> SessionRuntime:
         runtime = self._runtimes.get(record.id)
         if runtime is None:

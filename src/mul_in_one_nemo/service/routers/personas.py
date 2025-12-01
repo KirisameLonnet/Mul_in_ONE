@@ -371,10 +371,18 @@ async def delete_persona(
     persona_id: int,
     tenant_id: str = Query(..., description="Tenant identifier"),
     repository: PersonaDataRepository = Depends(get_persona_repository),
+    rag_service: RAGService = Depends(get_rag_service),
 ) -> Response:
     try:
         logger.info("Deleting persona id=%s for tenant '%s'", persona_id, tenant_id)
         await repository.delete_persona(tenant_id, persona_id)
+        
+        # Also delete the associated Milvus collection
+        try:
+            await rag_service.delete_collection(persona_id, tenant_id)
+        except Exception as e:
+            logger.warning(f"Failed to delete Milvus collection for persona {persona_id}: {e}")
+            
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     return Response(status_code=status.HTTP_204_NO_CONTENT)

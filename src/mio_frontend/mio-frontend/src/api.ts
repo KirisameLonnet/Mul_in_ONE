@@ -113,6 +113,14 @@ export const updateSessionMeta = async (
   return response.data;
 };
 
+export const deleteSession = async (session_id: string): Promise<void> => {
+  await api.delete(`/sessions/${session_id}`);
+};
+
+export const deleteSessions = async (session_ids: string[]): Promise<void> => {
+  await api.post('/sessions/batch-delete', { session_ids });
+};
+
 export const getMessages = async (session_id: string, limit: number = 50): Promise<Message[]> => {
   const response = await api.get<Message[]>(`/sessions/${session_id}/messages`, {
     params: { limit },

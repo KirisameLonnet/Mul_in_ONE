@@ -224,31 +224,17 @@ async def persona_dialogue_function(config: PersonaDialogueFunctionConfig, build
         state = ToolCallAgentGraphState(messages=messages)
 
         try:
-            # Stream the agent graph
-            # Note: graph.astream yields state updates or events. 
-            # We want to stream the final answer tokens.
-            # LangGraph streaming is complex. 
-            # For simplicity in this prototype, if tools are used, true streaming of the *final* answer might be tricky 
-            # without specifically filtering for the final LLM node's output tokens.
-            # NeMo Agent Toolkit's ToolCallAgentGraph might not expose token-level streaming easily via astream(state).
-            # However, let's try to fallback to _respond_single if streaming fails or just return the final text.
-            
-            # Actually, let's check if we can stream the final response. 
-            # If we use astream_events, we might get tokens.
-            # For now, to ensure it works, we might sacrifice streaming for tool use correctness 
-            # OR try to stream but be aware it might just yield the final state.
-            
-            # Let's try astream and see what we get.
-            # If it yields state, we can't "stream" text token by token easily to the frontend unless we use `stream_mode="messages"`.
-            
-            # If we can't stream properly with tools, we might just await the full response and yield it as one chunk.
-            # This is safer to fix the "no response" bug first.
-            
-            result_state = await graph.ainvoke(state)
-            last_message = result_state['messages'][-1]
-            text = _extract_text(last_message)
-            if text:
-                yield PersonaDialogueOutput(response=text)
+            # 使用 astream_events 获取流式输出，解决长时间等待问题
+            # version="v1" 是 LangChain astream_events 的要求
+            async for event in graph.astream_events(state, version="v1"):
+                kind = event["event"]
+                # 监听 LLM 的流式输出事件
+                if kind == "on_chat_model_stream":
+                    chunk = event["data"]["chunk"]
+                    # 过滤掉工具调用产生的空内容，只返回文本内容
+                    # 注意：如果模型在调用工具前有思考过程（CoT），这里也会输出，这是预期的
+                    if hasattr(chunk, "content") and chunk.content:
+                        yield PersonaDialogueOutput(response=chunk.content)
 
         except Exception as e:
             error_msg = str(e)

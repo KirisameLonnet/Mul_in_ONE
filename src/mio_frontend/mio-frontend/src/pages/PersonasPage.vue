@@ -291,7 +291,6 @@ const editPersona = reactive({
 })
 
 const columns = [
-  { name: 'id', label: 'ID', field: 'id', sortable: true },
   { name: 'name', label: 'Name', field: 'name', sortable: true },
   { name: 'handle', label: 'Handle', field: 'handle', sortable: true },
   { name: 'tone', label: 'Tone', field: 'tone' },

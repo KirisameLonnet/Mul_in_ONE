@@ -46,6 +46,7 @@ class SessionRuntime:
         self._request_queue: asyncio.Queue[SessionMessage] = asyncio.Queue()
         self._subscriber_queues: Set[asyncio.Queue[SessionStreamEvent]] = set()
         self._worker: asyncio.Task[None] | None = None
+        self._last_stop_reason: str | None = None
 
     def start(self) -> None:
         if self._worker is None or self._worker.done():
@@ -59,6 +60,21 @@ class SessionRuntime:
             except asyncio.CancelledError:  # pragma: no cover - lifecycle guard
                 pass
             self._worker = None
+
+    async def force_stop(self, reason: str | None = None) -> None:
+        """Force stop current processing and notify subscribers."""
+        self._last_stop_reason = reason
+        await self._publish_event(
+            SessionStreamEvent(
+                event="session.stopped",
+                data={
+                    "session_id": self.record.id,
+                    "reason": reason or "force_stop",
+                    "timestamp": self._now_iso(),
+                },
+            )
+        )
+        await self.stop()
 
     async def enqueue(self, message: SessionMessage) -> None:
         logger.info(f"Enqueue called for session {self.record.id}")
@@ -316,3 +332,14 @@ class SessionService:
         runtime.start()
         logger.info(f"_ensure_runtime: runtime {id(runtime)} started; queue id {id(runtime._request_queue)}")
         return runtime
+
+    async def stop_session(self, session_id: str, reason: str | None = None) -> None:
+        """Force stop an active session's processing."""
+        record = await self._repository.get(session_id)
+        if record is None:
+            raise SessionNotFoundError(session_id)
+        runtime = self._runtimes.get(session_id)
+        if runtime is None:
+            # Nothing to stop but keep idempotent behavior
+            return
+        await runtime.force_stop(reason)

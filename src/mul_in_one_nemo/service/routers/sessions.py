@@ -33,6 +33,10 @@ class BatchDeletePayload(BaseModel):
     session_ids: List[str]
 
 
+class StopPayload(BaseModel):
+    reason: Optional[str] = None
+
+
 def _serialize_session(record: SessionRecord) -> dict[str, object | None]:
     participants_data = None
     if record.participants:
@@ -198,6 +202,19 @@ async def delete_sessions(
 ):
     await service.delete_sessions(payload.session_ids)
     return
+
+
+@router.post("/sessions/{session_id}/stop", status_code=status.HTTP_202_ACCEPTED)
+async def stop_session(
+    session_id: str,
+    payload: StopPayload | None = None,
+    service: SessionService = Depends(get_session_service),
+):
+    try:
+        await service.stop_session(session_id, reason=(payload.reason if payload else None))
+    except SessionNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Session not found") from exc
+    return {"session_id": session_id, "status": "stopped"}
 
 
 @router.websocket("/ws/sessions/{session_id}")

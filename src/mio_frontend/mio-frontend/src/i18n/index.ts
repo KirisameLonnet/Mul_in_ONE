@@ -444,12 +444,32 @@ export const messages = {
     },
     debug: {
       refresh: 'Refresh',
+      lineCount: 'Lines',
+      levelLabel: 'Log level (applies to backend file)',
       autoRefresh: 'Auto refresh',
+      logPath: 'Log file: {path}',
+      currentLevel: 'Active level {level}',
+      lastUpdated: 'Updated at {time}',
+      cleanupToggle: 'Enable periodic cleanup',
+      cleanupIntervalLabel: 'Cleanup interval (seconds)',
+      cleanupHint: 'Default 7 days. Minimum {minSeconds}s. Current: {readable}',
+      applyChanges: 'Apply changes',
+      runCleanup: 'Clean now',
+      saveSuccess: 'Log settings updated',
+      saveFailed: 'Failed to update log settings',
+      cleanupTriggered: 'Cleanup triggered',
       options: {
         '200': '200 lines',
         '500': '500 lines',
         '1000': '1000 lines',
         '2000': '2000 lines'
+      },
+      levels: {
+        DEBUG: 'Debug',
+        INFO: 'Info',
+        WARNING: 'Warning',
+        ERROR: 'Error',
+        CRITICAL: 'Critical'
       },
       loadFailed: 'Failed to load logs: {error}'
     },
@@ -883,12 +903,32 @@ export const messages = {
     },
     debug: {
       refresh: '刷新',
+      lineCount: '显示行数',
+      levelLabel: '日志级别（影响后台写入）',
       autoRefresh: '自动刷新',
+      logPath: '日志文件：{path}',
+      currentLevel: '当前级别 {level}',
+      lastUpdated: '刷新时间 {time}',
+      cleanupToggle: '启用定期清理',
+      cleanupIntervalLabel: '清理间隔（秒）',
+      cleanupHint: '默认每7天清理，可修改，最短 {minSeconds} 秒，当前：{readable}',
+      applyChanges: '保存配置',
+      runCleanup: '立即清理',
+      saveSuccess: '已更新日志配置',
+      saveFailed: '更新日志配置失败',
+      cleanupTriggered: '已触发日志清理',
       options: {
         '200': '200 行',
         '500': '500 行',
         '1000': '1000 行',
         '2000': '2000 行'
+      },
+      levels: {
+        DEBUG: '调试',
+        INFO: '信息',
+        WARNING: '警告',
+        ERROR: '错误',
+        CRITICAL: '严重'
       },
       loadFailed: '获取日志失败: {error}'
     },

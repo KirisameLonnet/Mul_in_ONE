@@ -529,6 +529,48 @@ export const updateUserAdminStatus = async (userId: number, isAdmin: boolean): P
   return response.data;
 };
 
+// ==================== Debug / Logging APIs ====================
+
+export type LogLevel = 'DEBUG' | 'INFO' | 'WARNING' | 'ERROR' | 'CRITICAL';
+
+export interface LogSettingsResponse {
+  level: LogLevel;
+  cleanup_enabled: boolean;
+  cleanup_interval_seconds: number;
+}
+
+export interface LogsPayload {
+  path: string;
+  lines: string[];
+  count: number;
+  level: LogLevel;
+}
+
+export const fetchLogSettings = async (): Promise<LogSettingsResponse> => {
+  const response = await api.get<LogSettingsResponse>('/debug/log-settings');
+  return response.data;
+};
+
+export const updateLogSettings = async (payload: Partial<LogSettingsResponse>): Promise<LogSettingsResponse> => {
+  const response = await api.patch<LogSettingsResponse>('/debug/log-settings', payload);
+  return response.data;
+};
+
+export const triggerLogCleanup = async (): Promise<LogSettingsResponse> => {
+  const response = await api.post<LogSettingsResponse>('/debug/logs/cleanup');
+  return response.data;
+};
+
+export const fetchLogs = async (lines: number, level?: LogLevel): Promise<LogsPayload> => {
+  const response = await api.get<LogsPayload>('/debug/logs', {
+    params: {
+      lines,
+      level
+    }
+  });
+  return response.data;
+};
+
 if (typeof window !== 'undefined') {
   window.addEventListener('storage', (event) => {
     if (!event.key) return;

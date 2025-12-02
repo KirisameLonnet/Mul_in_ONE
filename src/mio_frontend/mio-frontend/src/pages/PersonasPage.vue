@@ -502,6 +502,10 @@ const loadEmbeddingConfig = async () => {
         embeddingProfileId.value = data.api_profile_id
         currentEmbeddingModel.value = data.api_model || ''
       }
+      // Load actual_embedding_dim from backend
+      if (data.actual_embedding_dim !== null && data.actual_embedding_dim !== undefined) {
+        actualEmbeddingDim.value = data.actual_embedding_dim
+      }
     }
   } catch (e) {
     console.error('Failed to load embedding config:', e)
@@ -515,7 +519,8 @@ const saveEmbeddingConfig = async () => {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        api_profile_id: embeddingProfileId.value
+        api_profile_id: embeddingProfileId.value,
+        actual_embedding_dim: actualEmbeddingDim.value
       })
     })
     if (response.ok) {

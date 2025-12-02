@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-import logging
 import os
-from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
 from fastapi import FastAPI
@@ -12,6 +10,7 @@ from fastapi.staticfiles import StaticFiles
 
 from mul_in_one_nemo.auth.routes import router as auth_router
 from mul_in_one_nemo.service.routers import personas, sessions, debug, admin
+from mul_in_one_nemo.service.logging_control import get_log_manager
 
 
 def create_app() -> FastAPI:
@@ -23,57 +22,13 @@ def create_app() -> FastAPI:
         redoc_url=None
     )
 
-    # Configure application-wide logging to a rotating file
+    # Configure application-wide logging to a rotating file with managed levels/cleanup
     log_dir = os.path.join(os.getcwd(), "logs")
     os.makedirs(log_dir, exist_ok=True)
-    log_file_path = os.path.join(log_dir, "backend.log")
+    log_file_path = Path(log_dir) / "backend.log"
 
-    root_logger = logging.getLogger()
-    root_logger.setLevel(logging.INFO)
-
-    # Avoid duplicate handlers if uvicorn reloads
-    file_handler: RotatingFileHandler | None = None
-    existing_file_handler = next(
-        (
-            h
-            for h in root_logger.handlers
-            if isinstance(h, RotatingFileHandler) and getattr(h, "baseFilename", None) == log_file_path
-        ),
-        None,
-    )
-    if existing_file_handler:
-        file_handler = existing_file_handler
-    else:
-        file_handler = RotatingFileHandler(log_file_path, maxBytes=5 * 1024 * 1024, backupCount=3)
-        formatter = logging.Formatter(
-            fmt="%(asctime)s %(levelname)s [%(name)s] %(message)s",
-            datefmt="%Y-%m-%d %H:%M:%S",
-        )
-        file_handler.setFormatter(formatter)
-        root_logger.addHandler(file_handler)
-
-    # Ensure important subsystems propagate to the shared handler
-    watched_loggers = (
-        "mul_in_one_nemo",
-        "mul_in_one_nemo.service",
-        "sqlalchemy.engine",
-        "sqlalchemy.pool",
-        "pymilvus",
-    )
-    for name in watched_loggers:
-        component_logger = logging.getLogger(name)
-        component_logger.setLevel(logging.INFO)
-        component_logger.propagate = True
-        # Remove console-only handlers added by dependencies to avoid stdout-only logs
-        for handler in list(component_logger.handlers):
-            if handler is not file_handler:
-                component_logger.removeHandler(handler)
-
-    # Capture uvicorn access logs as well
-    for uvicorn_logger_name in ("uvicorn", "uvicorn.error", "uvicorn.access"):
-        uvicorn_logger = logging.getLogger(uvicorn_logger_name)
-        uvicorn_logger.propagate = True
-        uvicorn_logger.setLevel(logging.INFO)
+    log_manager = get_log_manager(log_file_path)
+    log_manager.configure_logging()
 
     app.include_router(auth_router, prefix="/api")
     app.include_router(sessions.router, prefix="/api")

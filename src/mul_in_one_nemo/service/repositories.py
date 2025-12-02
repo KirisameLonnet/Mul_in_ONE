@@ -371,7 +371,7 @@ class PersonaDataRepository(ABC):
     async def get_user_embedding_config(self, username: str) -> dict: ...
 
     @abstractmethod
-    async def update_user_embedding_config(self, username: str, api_profile_id: int | None) -> dict: ...
+    async def update_user_embedding_config(self, username: str, api_profile_id: int | None, actual_embedding_dim: int | None = None) -> dict: ...
 
     @abstractmethod
     async def get_embedding_api_config_for_user(self, username: str) -> dict | None: ...
@@ -1062,6 +1062,7 @@ class SQLAlchemyPersonaRepository(PersonaDataRepository, BaseSQLAlchemyRepositor
                     "api_profile_name": None,
                     "api_model": None,
                     "api_base_url": None,
+                    "actual_embedding_dim": user.actual_embedding_dim,
                 }
             
             profile = await db.get(APIProfileRow, user.embedding_api_profile_id)
@@ -1071,6 +1072,7 @@ class SQLAlchemyPersonaRepository(PersonaDataRepository, BaseSQLAlchemyRepositor
                     "api_profile_name": None,
                     "api_model": None,
                     "api_base_url": None,
+                    "actual_embedding_dim": user.actual_embedding_dim,
                 }
             
             return {
@@ -1078,12 +1080,13 @@ class SQLAlchemyPersonaRepository(PersonaDataRepository, BaseSQLAlchemyRepositor
                 "api_profile_name": profile.name,
                 "api_model": profile.model,
                 "api_base_url": profile.base_url,
+                "actual_embedding_dim": user.actual_embedding_dim,
             }
 
-    async def update_user_embedding_config(self, username: str, api_profile_id: int | None) -> dict:
+    async def update_user_embedding_config(self, username: str, api_profile_id: int | None, actual_embedding_dim: int | None = None) -> dict:
         """Update the user's global embedding API profile configuration"""
         async with self._session_scope() as db:
-            logger.info("Updating user embedding config user=%s profile_id=%s", username, api_profile_id)
+            logger.info("Updating user embedding config user=%s profile_id=%s actual_dim=%s", username, api_profile_id, actual_embedding_dim)
             user = await self._get_user_by_username(db, username)
             
             # Validate the profile exists and belongs to this user if not None
@@ -1092,6 +1095,9 @@ class SQLAlchemyPersonaRepository(PersonaDataRepository, BaseSQLAlchemyRepositor
                 user.embedding_api_profile_id = profile.id
             else:
                 user.embedding_api_profile_id = None
+            
+            # Update actual embedding dimension
+            user.actual_embedding_dim = actual_embedding_dim
             
             await db.flush()
             logger.info("User embedding config updated user=%s", username)

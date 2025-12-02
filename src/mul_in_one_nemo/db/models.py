@@ -43,6 +43,7 @@ class User(SQLAlchemyBaseUserTable[int], Base):
     display_name: Mapped[str | None] = mapped_column(String(128), nullable=True)
     role: Mapped[str] = mapped_column(String(32), default="member")
     embedding_api_profile_id: Mapped[int | None] = mapped_column(ForeignKey("api_profiles.id"), nullable=True)
+    actual_embedding_dim: Mapped[int | None] = mapped_column(Integer, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     
     # Relationships

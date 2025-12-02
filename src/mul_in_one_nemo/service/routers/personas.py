@@ -169,6 +169,7 @@ class PersonaIngestResponse(BaseModel):
 
 class EmbeddingConfigUpdate(BaseModel):
     api_profile_id: int | None = Field(default=None, ge=1, description="API Profile ID for embedding model")
+    actual_embedding_dim: int | None = Field(default=None, ge=32, le=8192, description="Actual embedding dimension to use (32-8192)")
 
 
 class EmbeddingConfigResponse(BaseModel):
@@ -177,6 +178,7 @@ class EmbeddingConfigResponse(BaseModel):
     api_profile_name: str | None = None
     api_model: str | None = None
     api_base_url: AnyHttpUrl | None = None
+    actual_embedding_dim: int | None = None
 
 
 @router.get("/api-profiles", response_model=list[APIProfileResponse])
@@ -543,6 +545,7 @@ async def get_embedding_config(
         api_profile_name=config.get("api_profile_name"),
         api_model=config.get("api_model"),
         api_base_url=config.get("api_base_url"),
+        actual_embedding_dim=config.get("actual_embedding_dim"),
     )
 
 
@@ -553,15 +556,21 @@ async def update_embedding_config(
     repository: PersonaDataRepository = Depends(get_persona_repository),
 ) -> EmbeddingConfigResponse:
     """设置用户的全局 Embedding 模型配置"""
-    logger.info("Updating embedding config for user=%s to profile_id=%s", username, payload.api_profile_id)
+    logger.info("Updating embedding config for user=%s to profile_id=%s, actual_dim=%s", 
+                username, payload.api_profile_id, payload.actual_embedding_dim)
     try:
-        config = await repository.update_user_embedding_config(username, payload.api_profile_id)
+        config = await repository.update_user_embedding_config(
+            username, 
+            payload.api_profile_id, 
+            payload.actual_embedding_dim
+        )
         return EmbeddingConfigResponse(
             username=username,
             api_profile_id=config.get("api_profile_id"),
             api_profile_name=config.get("api_profile_name"),
             api_model=config.get("api_model"),
             api_base_url=config.get("api_base_url"),
+            actual_embedding_dim=config.get("actual_embedding_dim"),
         )
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc

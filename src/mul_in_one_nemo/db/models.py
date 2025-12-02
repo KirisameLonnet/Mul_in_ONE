@@ -87,6 +87,7 @@ class Persona(Base):
     max_agents_per_turn: Mapped[int] = mapped_column(default=2)
     api_profile_id: Mapped[int | None] = mapped_column(ForeignKey("api_profiles.id"))
     is_default: Mapped[bool] = mapped_column(Boolean, default=False)
+    avatar_path: Mapped[str | None] = mapped_column(String(512), nullable=True)
 
     sessions: Mapped[list["Session"]] = relationship(
         "Session", secondary=session_participants_table, back_populates="participants"

@@ -334,6 +334,7 @@ class PersonaDataRepository(ABC):
         api_profile_id: int | None,
         is_default: bool,
         background: str | None = None,
+        avatar_path: str | None = None,
     ) -> PersonaRecord:
         ...
 
@@ -356,6 +357,7 @@ class PersonaDataRepository(ABC):
         api_profile_id: int | None = None,
         is_default: bool | None = None,
         background: str | None = None,
+        avatar_path: str | None = None,
     ) -> PersonaRecord:
         ...
 
@@ -827,6 +829,7 @@ class SQLAlchemyPersonaRepository(PersonaDataRepository, BaseSQLAlchemyRepositor
         api_profile_id: int | None,
         is_default: bool,
         background: str | None = None,
+        avatar_path: str | None = None,
     ) -> PersonaRecord:
         async with self._session_scope() as db:
             logger.info("Creating persona '%s' for user=%s", name, username)
@@ -853,6 +856,7 @@ class SQLAlchemyPersonaRepository(PersonaDataRepository, BaseSQLAlchemyRepositor
                 api_profile_id=profile.id if profile else None,
                 is_default=is_default,
                 background=background,
+                avatar_path=avatar_path,
             )
             db.add(persona)
             await db.flush()
@@ -923,6 +927,7 @@ class SQLAlchemyPersonaRepository(PersonaDataRepository, BaseSQLAlchemyRepositor
         api_profile_id: int | None = None,
         is_default: bool | None = None,
         background: str | None = None,
+        avatar_path: str | None = None,
     ) -> PersonaRecord:
         async with self._session_scope() as db:
             logger.info("Updating persona id=%s user=%s", persona_id, username)
@@ -961,6 +966,8 @@ class SQLAlchemyPersonaRepository(PersonaDataRepository, BaseSQLAlchemyRepositor
                 persona.is_default = is_default
             if background is not None:
                 persona.background = background
+            if avatar_path is not None:
+                persona.avatar_path = avatar_path
             await db.flush()
             logger.info("Persona updated id=%s user=%s", persona_id, username)
             if profile_row is None and persona.api_profile_id:
@@ -1180,6 +1187,7 @@ class SQLAlchemyPersonaRepository(PersonaDataRepository, BaseSQLAlchemyRepositor
             api_model=profile.model if profile else None,
             api_base_url=profile.base_url if profile else None,
             temperature=profile.temperature if profile else None,
+            avatar_path=row.avatar_path,
         )
 
     def _encrypt_api_key(self, api_key: str) -> str:

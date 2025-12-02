@@ -38,6 +38,7 @@ class PersonaRecord:
     api_model: str | None = None
     api_base_url: str | None = None
     temperature: float | None = None
+    avatar_path: str | None = None
 
 
 @dataclass(frozen=True)

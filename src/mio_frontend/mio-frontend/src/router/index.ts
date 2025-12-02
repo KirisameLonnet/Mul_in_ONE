@@ -8,6 +8,7 @@ import PersonasPage from '../pages/PersonasPage.vue'
 import ApiProfilesPage from '../pages/ApiProfilesPage.vue'
 import DebugPage from '../pages/DebugPage.vue'
 import ChatConversationPage from '../pages/ChatConversationPage.vue'
+import AccountSettingsPage from '../pages/AccountSettingsPage.vue'
 import { authState } from '../api'
 
 const routes = [
@@ -36,6 +37,7 @@ const routes = [
       { path: 'personas', component: PersonasPage },
       { path: 'profiles', component: ApiProfilesPage },
       { path: 'debug', component: DebugPage },
+      { path: 'account', component: AccountSettingsPage },
       { path: 'chat/:id', component: ChatConversationPage }
     ]
   }

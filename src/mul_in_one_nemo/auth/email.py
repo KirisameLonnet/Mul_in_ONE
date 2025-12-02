@@ -1,24 +1,23 @@
 """Email service for sending verification emails."""
 
+import os
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from typing import Optional
-
-from mul_in_one_nemo.config import Settings
 
 
 class EmailService:
     """邮件发送服务."""
     
     def __init__(self):
-        self.settings = Settings.from_env()
-        self.smtp_host = self.settings.get_env("SMTP_HOST", "smtp.gmail.com")
-        self.smtp_port = int(self.settings.get_env("SMTP_PORT", "587"))
-        self.smtp_user = self.settings.get_env("SMTP_USER", "")
-        self.smtp_password = self.settings.get_env("SMTP_PASSWORD", "")
-        self.from_email = self.settings.get_env("SMTP_FROM_EMAIL", self.smtp_user)
-        self.from_name = self.settings.get_env("SMTP_FROM_NAME", "Mul-in-ONE")
+        self.smtp_host = os.environ.get("SMTP_HOST", "smtp.gmail.com")
+        self.smtp_port = int(os.environ.get("SMTP_PORT", "587"))
+        self.smtp_user = os.environ.get("SMTP_USER", "")
+        self.smtp_password = os.environ.get("SMTP_PASSWORD", "")
+        self.from_email = os.environ.get("SMTP_FROM_EMAIL", self.smtp_user)
+        self.from_name = os.environ.get("SMTP_FROM_NAME", "Mul-in-ONE")
+        self.frontend_url = os.environ.get("FRONTEND_URL", "http://localhost:5173")
         self.enabled = bool(self.smtp_user and self.smtp_password)
     
     def send_email(self, to_email: str, subject: str, html_content: str, text_content: Optional[str] = None):
@@ -55,7 +54,7 @@ class EmailService:
     
     def send_verification_email(self, email: str, token: str, username: str):
         """发送邮箱验证邮件."""
-        verify_url = f"{self.settings.get_env('FRONTEND_URL', 'http://localhost:5173')}/verify-email?token={token}"
+        verify_url = f"{self.frontend_url}/verify-email?token={token}"
         
         html_content = f"""
         <!DOCTYPE html>
@@ -101,7 +100,7 @@ class EmailService:
     
     def send_password_reset_email(self, email: str, token: str, username: str):
         """发送密码重置邮件."""
-        reset_url = f"{self.settings.get_env('FRONTEND_URL', 'http://localhost:5173')}/reset-password?token={token}"
+        reset_url = f"{self.frontend_url}/reset-password?token={token}"
         
         html_content = f"""
         <!DOCTYPE html>

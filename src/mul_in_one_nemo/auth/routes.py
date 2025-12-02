@@ -1,12 +1,26 @@
 """Authentication routes for FastAPI backend."""
 
-from fastapi import APIRouter, HTTPException, Request, Depends
-from pydantic import BaseModel
+import logging
 
-from mul_in_one_nemo.auth import UserCreate, UserRead, UserUpdate, auth_backend, fastapi_users
+from fastapi import APIRouter, HTTPException, Request, Depends, status
+from fastapi.responses import Response
+from fastapi_users.exceptions import UserAlreadyExists
+from pydantic import BaseModel
+from sqlalchemy.exc import IntegrityError
+
+from mul_in_one_nemo.auth import (
+    UserCreate,
+    UserRead,
+    UserUpdate,
+    auth_backend,
+    current_active_user,
+    fastapi_users,
+)
 from mul_in_one_nemo.auth.oauth import get_gitee_oauth_client, get_github_oauth_client
 from mul_in_one_nemo.auth.turnstile import turnstile_service
 from mul_in_one_nemo.auth.manager import get_user_manager
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -48,9 +62,29 @@ async def register_with_captcha(
     
     try:
         user = await user_manager.create(user_create, request=request)
-        return UserRead.from_orm(user)
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        return UserRead.model_validate(user)
+    except UserAlreadyExists:
+        raise HTTPException(status_code=400, detail="邮箱或用户名已被注册")
+    except IntegrityError as exc:
+        logger.warning("Integrity error when registering user %s: %s", data.email, exc)
+        raise HTTPException(status_code=400, detail="邮箱或用户名已被注册")
+    except Exception as exc:
+        logger.exception("Failed to register user %s", data.email)
+        raise HTTPException(status_code=500, detail="注册失败，请稍后重试")
+
+
+@router.delete("/auth/account", status_code=status.HTTP_204_NO_CONTENT, tags=["auth"])
+async def delete_account(
+    user = Depends(current_active_user),
+    user_manager = Depends(get_user_manager),
+):
+    """Delete the currently authenticated account."""
+    try:
+        await user_manager.delete(user)
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
+    except Exception:
+        logger.exception("Failed to delete account for user %s", getattr(user, "email", "unknown"))
+        raise HTTPException(status_code=500, detail="删除账户失败，请稍后重试")
 
 
 # 基础认证路由

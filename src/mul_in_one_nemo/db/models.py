@@ -44,6 +44,9 @@ class User(SQLAlchemyBaseUserTable[int], Base):
     role: Mapped[str] = mapped_column(String(32), default="member")
     embedding_api_profile_id: Mapped[int | None] = mapped_column(ForeignKey("api_profiles.id"), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    
+    # Relationships
+    sessions: Mapped[list["Session"]] = relationship("Session", back_populates="user", cascade="all, delete-orphan")
 
 
 class OAuthAccount(SQLAlchemyBaseOAuthAccountTable[int], Base):
@@ -51,12 +54,6 @@ class OAuthAccount(SQLAlchemyBaseOAuthAccountTable[int], Base):
     __tablename__ = "oauth_accounts"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
-
-# Add relationships after both classes are defined
-User.sessions = relationship("Session", back_populates="user", cascade="all, delete-orphan")
-User.oauth_accounts = relationship("OAuthAccount", back_populates="user", cascade="all, delete-orphan", lazy="joined")
-OAuthAccount.user = relationship("User", back_populates="oauth_accounts")
 
 
 class APIProfile(Base):

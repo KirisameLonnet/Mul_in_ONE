@@ -1,9 +1,8 @@
 """Cloudflare Turnstile verification service."""
 
+import os
 import httpx
 from typing import Optional
-
-from mul_in_one_nemo.config import Settings
 
 
 class TurnstileService:
@@ -12,8 +11,7 @@ class TurnstileService:
     VERIFY_URL = "https://challenges.cloudflare.com/turnstile/v0/siteverify"
     
     def __init__(self):
-        self.settings = Settings.from_env()
-        self.secret_key = self.settings.get_env("TURNSTILE_SECRET_KEY", "")
+        self.secret_key = os.environ.get("TURNSTILE_SECRET_KEY", "")
         self.enabled = bool(self.secret_key)
     
     async def verify_token(self, token: str, remote_ip: Optional[str] = None) -> tuple[bool, Optional[str]]:

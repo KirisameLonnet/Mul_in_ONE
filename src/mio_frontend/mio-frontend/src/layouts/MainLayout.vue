@@ -45,6 +45,15 @@
           </q-item-section>
         </q-item>
 
+        <q-item clickable v-ripple to="/account">
+          <q-item-section avatar>
+            <q-icon name="manage_accounts" />
+          </q-item-section>
+          <q-item-section>
+            Account Settings
+          </q-item-section>
+        </q-item>
+
         <q-item clickable v-ripple to="/debug">
           <q-item-section avatar>
             <q-icon name="bug_report" />

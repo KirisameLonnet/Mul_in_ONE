@@ -345,3 +345,7 @@ export const authLogout = async (): Promise<void> => {
   await api.post('/auth/logout');
   logout();
 };
+
+export const deleteAccount = async (): Promise<void> => {
+  await api.delete('/auth/account');
+};

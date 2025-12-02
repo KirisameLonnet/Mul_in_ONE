@@ -2,15 +2,15 @@
   <div class="login-container">
     <div class="login-card">
       <McIntroduction 
-        :title="'Mul-in-One'" 
-        :subTitle="'Multi-Agent Social Chat'"
-        :description="['Enter your username to start chatting with multiple AI personas.']"
+        :title="$t('login.title')" 
+        :subTitle="$t('login.subtitle')"
+        :description="[$t('login.description')]"
       />
       
       <div class="form-group">
         <d-input 
           v-model="username" 
-          placeholder="Enter your username" 
+          :placeholder="$t('login.usernamePlaceholder')" 
           @keyup.enter="handleLogin"
           size="lg"
         />
@@ -24,7 +24,7 @@
         :disabled="!username"
         @click="handleLogin"
       >
-        Enter App
+        {{ $t('login.enterApp') }}
       </d-button>
     </div>
   </div>

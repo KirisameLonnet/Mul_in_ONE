@@ -1,18 +1,18 @@
 <template>
   <q-page padding>
     <div class="row items-center justify-between q-mb-md">
-      <div class="text-h4">Personas</div>
+      <div class="text-h4">{{ t('personas.title') }}</div>
       <div class="row items-center q-gutter-sm">
         <q-btn 
           color="secondary" 
           icon="storage" 
-          label="构建向量数据库" 
+          :label="t('personas.buildVectorDb')" 
           flat 
           class="q-mr-sm" 
           @click="buildVectorDatabase"
           :loading="buildingVectorDB"
         />
-        <q-btn color="primary" icon="add" label="New Persona" @click="openCreateDialog" />
+        <q-btn color="primary" icon="add" :label="t('personas.new')" @click="openCreateDialog" />
       </div>
     </div>
 
@@ -21,10 +21,10 @@
       <q-card-section>
         <div class="text-h6 q-mb-sm">
           <q-icon name="settings" class="q-mr-sm" />
-          全局 Embedding 模型配置
+          {{ t('personas.embeddingConfigTitle') }}
         </div>
         <div class="text-caption text-grey-7 q-mb-md">
-          ⚠️ 使用人物背景传记功能（RAG）需要配置一个 Embedding 模型。此配置对所有 Persona 生效。
+          ⚠️ {{ t('personas.embeddingConfigDesc') }}
         </div>
         <div class="row items-start q-gutter-md">
           <q-select
@@ -32,18 +32,18 @@
             :options="apiProfiles.filter(p => p.is_embedding_model)"
             option-value="id"
             option-label="name"
-            label="Embedding API Profile"
+            :label="t('personas.embeddingProfile')"
             emit-value
             map-options
             clearable
             style="min-width: 300px"
-            hint="只显示标记为 Embedding 模型的 API Profile"
+            :hint="t('personas.embeddingProfileHint')"
           >
             <template v-slot:option="scope">
               <q-item v-bind="scope.itemProps">
                 <q-item-section>
                   <q-item-label>{{ scope.opt.name }}</q-item-label>
-                  <q-item-label caption>{{ scope.opt.model }} (最大维度: {{ scope.opt.embedding_dim || 'N/A' }})</q-item-label>
+                  <q-item-label caption>{{ scope.opt.model }} ({{ t('apiProfiles.embedding.maxDim') }}: {{ scope.opt.embedding_dim || 'N/A' }})</q-item-label>
                 </q-item-section>
               </q-item>
             </template>
@@ -51,20 +51,20 @@
           <q-input
             v-model.number="actualEmbeddingDim"
             type="number"
-            label="实际使用维度"
-            hint="留空使用最大维度"
+            :label="t('personas.actualEmbeddingDim')"
+            :hint="t('personas.actualEmbeddingDimHint')"
             style="width: 160px"
             :disable="!embeddingProfileId"
-            :rules="[val => !val || (val >= 32 && val <= (selectedEmbeddingProfile?.embedding_dim || 8192)) || `范围：32-${selectedEmbeddingProfile?.embedding_dim || 8192}`]"
+            :rules="[val => !val || (val >= 32 && val <= (selectedEmbeddingProfile?.embedding_dim || 8192)) || t('personas.fields.dimensionRange', { max: selectedEmbeddingProfile?.embedding_dim || 8192 })]"
           />
           <q-btn 
             color="primary" 
-            label="保存配置" 
+            :label="t('personas.saveConfig')" 
             @click="saveEmbeddingConfig"
             :loading="savingEmbeddingConfig"
           />
           <div v-if="currentEmbeddingModel" class="text-body2">
-            当前模型: <q-chip dense>{{ currentEmbeddingModel }}</q-chip>
+            {{ t('personas.currentModel') }}: <q-chip dense>{{ currentEmbeddingModel }}</q-chip>
           </div>
         </div>
       </q-card-section>
@@ -105,7 +105,7 @@
     <q-dialog v-model="createDialog" persistent>
       <q-card style="min-width: 500px">
         <q-card-section>
-          <div class="text-h6">Create New Persona</div>
+          <div class="text-h6">{{ t('personas.createDialog.title') }}</div>
         </q-card-section>
 
         <q-card-section class="q-pt-none">
@@ -122,43 +122,43 @@
                   outline
                   color="primary"
                   icon="photo_camera"
-                  label="Avatar"
+                  :label="t('personas.createDialog.avatar')"
                   @click="openAvatarDialog('create')"
                 />
               </div>
             </div>
-            <q-input v-model="newPersona.name" label="Name" :rules="[val => !!val || 'Field is required']" />
-            <q-input v-model="newPersona.handle" label="Handle" prefix="@" :rules="[val => !!val || 'Field is required']" />
-            <q-input v-model="newPersona.tone" label="Tone" />
-            <q-input v-model.number="newPersona.proactivity" type="number" label="Proactivity (0-1)" step="0.1" min="0" max="1" />
+            <q-input v-model="newPersona.name" :label="t('personas.createDialog.name')" :rules="[val => !!val || t('common.required')]" />
+            <q-input v-model="newPersona.handle" :label="t('personas.createDialog.handle')" prefix="@" :rules="[val => !!val || t('common.required')]" />
+            <q-input v-model="newPersona.tone" :label="t('personas.createDialog.tone')" />
+            <q-input v-model.number="newPersona.proactivity" type="number" :label="t('personas.createDialog.proactivity')" step="0.1" min="0" max="1" />
             <q-input
               v-model.number="newPersona.memory_window"
               type="number"
-              label="Memory Window (-1 = Unlimited)"
-              :rules="[val => val === -1 || val >= 1 || '必须为 -1 或 ≥ 1']"
+              :label="t('personas.createDialog.memoryWindow')"
+              :rules="[val => val === -1 || val >= 1 || t('personas.fields.mustBeMinusOneOr')]"
             />
             <q-input
               v-model.number="newPersona.max_agents_per_turn"
               type="number"
-              label="Max Agents/Turn (-1 = Unlimited)"
-              :rules="[val => val === -1 || val >= 1 || '必须为 -1 或 ≥ 1']"
+              :label="t('personas.createDialog.maxAgents')"
+              :rules="[val => val === -1 || val >= 1 || t('personas.fields.mustBeMinusOneOr')]"
             />
             <q-select 
               v-model="newPersona.api_profile_id" 
               :options="apiProfiles" 
               option-value="id" 
               option-label="name" 
-              label="API Profile" 
+              :label="t('personas.createDialog.apiProfile')" 
               emit-value 
               map-options 
             />
-              <q-input v-model="newPersona.background" type="textarea" autogrow label="Background / Biography (任意长度)" />
-            <q-input v-model="newPersona.prompt" type="textarea" label="System Prompt" :rules="[val => !!val || 'Field is required']" />
-            <q-checkbox v-model="newPersona.is_default" label="Set as Default" />
+              <q-input v-model="newPersona.background" type="textarea" autogrow :label="t('personas.createDialog.background')" />
+            <q-input v-model="newPersona.prompt" type="textarea" :label="t('personas.createDialog.prompt')" :rules="[val => !!val || t('common.required')]" />
+            <q-checkbox v-model="newPersona.is_default" :label="t('personas.createDialog.isDefault')" />
             
             <div align="right">
-              <q-btn flat label="Cancel" color="primary" v-close-popup />
-              <q-btn flat label="Create" type="submit" color="primary" :loading="creating" />
+              <q-btn flat :label="t('common.cancel')" color="primary" v-close-popup />
+              <q-btn flat :label="t('common.create')" type="submit" color="primary" :loading="creating" />
             </div>
           </q-form>
         </q-card-section>
@@ -168,7 +168,7 @@
     <q-dialog v-model="editDialog" persistent>
       <q-card style="min-width: 500px">
         <q-card-section>
-          <div class="text-h6">Edit Persona</div>
+          <div class="text-h6">{{ t('personas.editDialog.title') }}</div>
         </q-card-section>
 
         <q-card-section class="q-pt-none">
@@ -185,50 +185,50 @@
                   outline
                   color="primary"
                   icon="photo_camera"
-                  label="Avatar"
+                  :label="t('personas.createDialog.avatar')"
                   @click="openAvatarDialog('edit')"
                 />
               </div>
             </div>
-            <q-input v-model="editPersona.name" label="Name" :rules="[val => !!val || 'Field is required']" />
-            <q-input v-model="editPersona.handle" label="Handle" prefix="@" :rules="[val => !!val || 'Field is required']" />
-            <q-input v-model="editPersona.tone" label="Tone" />
-            <q-input v-model.number="editPersona.proactivity" type="number" label="Proactivity (0-1)" step="0.1" min="0" max="1" />
+            <q-input v-model="editPersona.name" :label="t('personas.createDialog.name')" :rules="[val => !!val || t('common.required')]" />
+            <q-input v-model="editPersona.handle" :label="t('personas.createDialog.handle')" prefix="@" :rules="[val => !!val || t('common.required')]" />
+            <q-input v-model="editPersona.tone" :label="t('personas.createDialog.tone')" />
+            <q-input v-model.number="editPersona.proactivity" type="number" :label="t('personas.createDialog.proactivity')" step="0.1" min="0" max="1" />
             <q-input
               v-model.number="editPersona.memory_window"
               type="number"
-              label="Memory Window (-1 = Unlimited)"
-              :rules="[val => val === -1 || val >= 1 || '必须为 -1 或 ≥ 1']"
+              :label="t('personas.createDialog.memoryWindow')"
+              :rules="[val => val === -1 || val >= 1 || t('personas.fields.mustBeMinusOneOr')]"
             />
             <q-input
               v-model.number="editPersona.max_agents_per_turn"
               type="number"
-              label="Max Agents/Turn (-1 = Unlimited)"
-              :rules="[val => val === -1 || val >= 1 || '必须为 -1 或 ≥ 1']"
+              :label="t('personas.createDialog.maxAgents')"
+              :rules="[val => val === -1 || val >= 1 || t('personas.fields.mustBeMinusOneOr')]"
             />
             <q-select 
               v-model="editPersona.api_profile_id" 
               :options="apiProfiles" 
               option-value="id" 
               option-label="name" 
-              label="API Profile" 
+              :label="t('personas.createDialog.apiProfile')" 
               emit-value 
               map-options 
               clearable
             />
-              <q-input v-model="editPersona.background" type="textarea" autogrow label="Background / Biography (任意长度)" />
+              <q-input v-model="editPersona.background" type="textarea" autogrow :label="t('personas.createDialog.background')" />
             <q-input
               v-model="editPersona.avatar_path"
-              label="当前头像路径"
+              :label="t('personas.editDialog.currentAvatarPath')"
               readonly
-              hint="头像路径由上传生成，不支持手动填写"
+              :hint="t('personas.editDialog.avatarHint')"
             />
-            <q-input v-model="editPersona.prompt" type="textarea" label="System Prompt" :rules="[val => !!val || 'Field is required']" />
-            <q-checkbox v-model="editPersona.is_default" label="Set as Default" />
+            <q-input v-model="editPersona.prompt" type="textarea" :label="t('personas.createDialog.prompt')" :rules="[val => !!val || t('common.required')]" />
+            <q-checkbox v-model="editPersona.is_default" :label="t('personas.createDialog.isDefault')" />
 
             <div align="right">
-              <q-btn flat label="Cancel" color="primary" v-close-popup />
-              <q-btn flat label="Save" type="submit" color="primary" :loading="updating" />
+              <q-btn flat :label="t('common.cancel')" color="primary" v-close-popup />
+              <q-btn flat :label="t('common.save')" type="submit" color="primary" :loading="updating" />
             </div>
           </q-form>
         </q-card-section>
@@ -238,7 +238,7 @@
     <q-dialog v-model="avatarDialog">
       <q-card style="min-width: 520px">
         <q-card-section class="row items-center">
-          <div class="text-h6">头像上传与应用</div>
+          <div class="text-h6">{{ t('personas.avatarDialog.title') }}</div>
           <q-space />
           <q-chip v-if="avatarDialogPersona" dense color="primary" text-color="white" icon="person">
             {{ avatarDialogPersona.name }} (@{{ avatarDialogPersona.handle }})
@@ -247,7 +247,7 @@
         <q-separator />
         <q-card-section class="q-gutter-md">
           <q-banner v-if="!canUploadAvatar" class="bg-amber-1 text-amber-10" dense>
-            保存 Persona 后才能上传头像。创建时可先填写头像 URL，保存后再上传文件。
+            {{ t('personas.avatarDialog.saveFirst') }}
           </q-banner>
           <div class="row items-center q-gutter-md">
             <div class="avatar-crop-wrapper">
@@ -269,7 +269,7 @@
                   :style="cropImageStyle"
                 />
                 <div v-else class="avatar-crop-placeholder">
-                  选择头像文件后进行裁切
+                  {{ t('personas.avatarDialog.cropPlaceholder') }}
                 </div>
               </div>
               <div class="q-mt-sm">
@@ -284,19 +284,18 @@
                   @update:model-value="onScaleChange"
                 />
                 <div class="row items-center justify-between text-caption text-grey-7">
-                  <span>缩放</span>
-                  <q-btn dense flat icon="refresh" label="重置" :disable="!avatarCrop.imageUrl" @click="resetCrop" />
+                  <span>{{ t('personas.avatarDialog.scale') }}</span>
+                  <q-btn dense flat icon="refresh" :label="t('personas.avatarDialog.reset')" :disable="!avatarCrop.imageUrl" @click="resetCrop" />
                 </div>
               </div>
             </div>
             <div class="text-caption text-grey-7">
-              推荐 1:1 PNG/JPG/WEBP · ≤2MB<br>
-              上传接口 `/api/personas/personas/{id}/avatar`
+              {{ t('personas.avatarDialog.tips') }}
             </div>
           </div>
           <q-file
             v-model="avatarUpload.file"
-            label="选择头像文件"
+            :label="t('personas.avatarDialog.chooseFile')"
             accept="image/*"
             dense
             clearable
@@ -311,14 +310,14 @@
             </template>
           </q-file>
           <div class="text-caption text-grey-6" v-if="avatarDialogPersona?.avatar_path">
-            当前路径：{{ avatarDialogPersona.avatar_path }}
+            {{ t('personas.avatarDialog.currentPath') }} {{ avatarDialogPersona.avatar_path }}
           </div>
         </q-card-section>
         <q-separator />
         <q-card-actions align="right">
-          <q-btn flat label="取消" color="primary" v-close-popup />
+          <q-btn flat :label="t('common.cancel')" color="primary" v-close-popup />
           <q-btn
-            label="上传并应用"
+            :label="t('personas.avatarDialog.upload')"
             color="primary"
             :disable="!canUploadAvatar || !avatarUpload.file"
             :loading="avatarUpload.uploading"
@@ -330,13 +329,13 @@
 
     <q-dialog v-model="deleteDialog">
       <q-card>
-        <q-card-section class="text-h6">Delete Persona</q-card-section>
+        <q-card-section class="text-h6">{{ t('personas.deleteDialog.title') }}</q-card-section>
         <q-card-section>
-          Are you sure you want to delete "{{ selectedPersona?.name }}"?
+          {{ t('personas.deleteDialog.body', { name: selectedPersona?.name }) }}
         </q-card-section>
         <q-card-actions align="right">
-          <q-btn flat label="Cancel" color="primary" v-close-popup />
-          <q-btn flat label="Delete" color="negative" @click="handleDelete" :loading="deleting" />
+          <q-btn flat :label="t('common.cancel')" color="primary" v-close-popup />
+          <q-btn flat :label="t('common.delete')" color="negative" @click="handleDelete" :loading="deleting" />
         </q-card-actions>
       </q-card>
     </q-dialog>
@@ -345,11 +344,11 @@
     <q-dialog v-model="buildProgressDialog" persistent>
       <q-card style="min-width: 400px">
         <q-card-section>
-          <div class="text-h6">正在构建向量数据库</div>
+          <div class="text-h6">{{ t('personas.buildDialog.title') }}</div>
         </q-card-section>
         <q-card-section class="q-pt-none">
           <div class="text-body2 q-mb-md">
-            正在为所有 Persona 的背景资料生成向量索引...
+            {{ t('personas.buildDialog.description') }}
           </div>
           <q-linear-progress 
             :value="buildProgress / 100" 
@@ -372,6 +371,7 @@
 import { ref, onMounted, reactive, computed, watch } from 'vue'
 import { useQuasar } from 'quasar'
 import { getPersonas, createPersona, updatePersona, deletePersona, getAPIProfiles, uploadPersonaAvatar, type Persona, type APIProfile, type UpdatePersonaPayload, authState } from '../api'
+import { useI18n } from 'vue-i18n'
 
 // Quasar instance
 const $q = useQuasar()
@@ -387,6 +387,7 @@ const deleteDialog = ref(false)
 const updating = ref(false)
 const deleting = ref(false)
 const selectedPersona = ref<Persona | null>(null)
+const { t } = useI18n()
 
 // Embedding config state
 const embeddingProfileId = ref<number | null>(null)
@@ -461,15 +462,15 @@ const editPersona = reactive({
   avatar_path: ''
 })
 
-const columns = [
-  { name: 'avatar', label: '头像', field: 'avatar_path', align: 'left' as const },
-  { name: 'name', label: 'Name', field: 'name', sortable: true },
-  { name: 'handle', label: 'Handle', field: 'handle', sortable: true },
-  { name: 'tone', label: 'Tone', field: 'tone' },
-  { name: 'proactivity', label: 'Proactivity', field: 'proactivity' },
-  { name: 'api_profile', label: 'API Profile', field: 'api_profile_name' },
-  { name: 'actions', label: 'Actions', field: 'actions', align: 'right' as const }
-]
+const columns = computed(() => [
+  { name: 'avatar', label: t('personas.columns.avatar'), field: 'avatar_path', align: 'left' as const },
+  { name: 'name', label: t('personas.columns.name'), field: 'name', sortable: true },
+  { name: 'handle', label: t('personas.columns.handle'), field: 'handle', sortable: true },
+  { name: 'tone', label: t('personas.columns.tone'), field: 'tone' },
+  { name: 'proactivity', label: t('personas.columns.proactivity'), field: 'proactivity' },
+  { name: 'api_profile', label: t('personas.columns.apiProfile'), field: 'api_profile_name' },
+  { name: 'actions', label: t('common.actions'), field: 'actions', align: 'right' as const }
+])
 
 const loadData = async () => {
   loading.value = true
@@ -486,7 +487,7 @@ const loadData = async () => {
     // Load current embedding config
     await loadEmbeddingConfig()
   } catch (e) {
-    $q.notify({ type: 'negative', message: 'Failed to load data' })
+    $q.notify({ type: 'negative', message: t('personas.notifications.loadFailed') })
   } finally {
     loading.value = false
   }
@@ -518,14 +519,14 @@ const saveEmbeddingConfig = async () => {
       })
     })
     if (response.ok) {
-      $q.notify({ type: 'positive', message: 'Embedding 配置已保存' })
+      $q.notify({ type: 'positive', message: t('personas.notifications.saveEmbeddingSuccess') })
       await loadEmbeddingConfig()
     } else {
       const error = await response.json()
-      $q.notify({ type: 'negative', message: error.detail || '保存配置失败' })
+      $q.notify({ type: 'negative', message: error.detail || t('personas.notifications.saveEmbeddingFailed') })
     }
   } catch (e) {
-    $q.notify({ type: 'negative', message: '保存配置失败' })
+    $q.notify({ type: 'negative', message: t('personas.notifications.saveEmbeddingFailed') })
   } finally {
     savingEmbeddingConfig.value = false
   }
@@ -535,8 +536,8 @@ const buildVectorDatabase = async () => {
   if (!embeddingProfileId.value) {
     $q.notify({ 
       type: 'warning', 
-      message: '请先配置 Embedding 模型',
-      caption: '向量数据库需要 embedding 模型来生成文档向量'
+      message: t('personas.notifications.buildNeedEmbedding'),
+      caption: t('personas.notifications.buildNeedEmbedding')
     })
     return
   }
@@ -593,13 +594,13 @@ const buildVectorDatabase = async () => {
             
             const notifyType = errors.length > 0 ? 'warning' : 'positive'
             const message = errors.length > 0 
-              ? `完成，但有 ${errors.length} 个错误`
-              : '向量数据库构建成功'
+              ? t('personas.notifications.buildCompleteWithErrors', { count: errors.length })
+              : t('personas.notifications.buildComplete')
             
             $q.notify({ 
               type: notifyType, 
               message,
-              caption: `处理了 ${details.processed} 个 Persona，共 ${details.docs} 个文档`,
+              caption: t('personas.notifications.buildCaption', { processed: details.processed, docs: details.docs }),
               timeout: 3000
             })
 
@@ -607,7 +608,7 @@ const buildVectorDatabase = async () => {
               console.error('Build errors:', errors)
               $q.notify({
                 type: 'info',
-                message: '查看控制台以获取详细错误信息',
+                message: t('personas.notifications.buildErrorInfo'),
                 timeout: 2000
               })
             }
@@ -623,7 +624,7 @@ const buildVectorDatabase = async () => {
     console.error('Build vector DB error:', e)
     $q.notify({ 
       type: 'negative', 
-      message: '构建向量数据库时发生错误',
+      message: t('personas.notifications.buildError'),
       caption: String(e)
     })
   } finally {
@@ -710,11 +711,11 @@ const openDeleteDialog = (persona: Persona) => {
 
 const handleAvatarUpload = async () => {
   if (!canUploadAvatar.value) {
-    $q.notify({ type: 'warning', message: '请先保存 Persona 后再上传头像' })
+    $q.notify({ type: 'warning', message: t('personas.notifications.avatarNeedSave') })
     return
   }
   if (!avatarDialogPersonaId.value || !avatarUpload.file) {
-    $q.notify({ type: 'warning', message: '请选择头像文件' })
+    $q.notify({ type: 'warning', message: t('personas.notifications.avatarNeedFile') })
     return
   }
   avatarUpload.uploading = true
@@ -730,11 +731,11 @@ const handleAvatarUpload = async () => {
       selectedPersona.value = updated
     }
     avatarCacheBust[updated.id] = String(Date.now())
-    $q.notify({ type: 'positive', message: '头像已上传并应用' })
+    $q.notify({ type: 'positive', message: t('personas.notifications.avatarUploaded') })
     avatarDialog.value = false
   } catch (e: any) {
     console.error(e)
-    $q.notify({ type: 'negative', message: e?.response?.data?.detail || '上传头像失败' })
+    $q.notify({ type: 'negative', message: e?.response?.data?.detail || t('personas.notifications.avatarUploadFailed') })
   } finally {
     avatarUpload.uploading = false
     avatarUpload.file = null
@@ -758,10 +759,10 @@ const handleCreate = async () => {
       is_default: newPersona.is_default
     })
     createDialog.value = false
-    $q.notify({ type: 'positive', message: 'Persona created' })
+    $q.notify({ type: 'positive', message: t('personas.notifications.createSuccess') })
     loadData()
   } catch (e) {
-    $q.notify({ type: 'negative', message: 'Failed to create persona' })
+    $q.notify({ type: 'negative', message: t('personas.notifications.savePersonaFailed') })
   } finally {
     creating.value = false
   }
@@ -787,10 +788,10 @@ const handleUpdate = async () => {
     }
     await updatePersona(editPersona.id, payload)
     editDialog.value = false
-    $q.notify({ type: 'positive', message: 'Persona updated' })
+    $q.notify({ type: 'positive', message: t('personas.notifications.updateSuccess') })
     loadData()
   } catch (e) {
-    $q.notify({ type: 'negative', message: 'Failed to update persona' })
+    $q.notify({ type: 'negative', message: t('personas.notifications.savePersonaFailed') })
   } finally {
     updating.value = false
   }
@@ -802,10 +803,10 @@ const handleDelete = async () => {
   try {
     await deletePersona(authState.username, selectedPersona.value.id)
     deleteDialog.value = false
-    $q.notify({ type: 'positive', message: 'Persona deleted' })
+    $q.notify({ type: 'positive', message: t('personas.notifications.deleteSuccess') })
     loadData()
   } catch (e) {
-    $q.notify({ type: 'negative', message: 'Failed to delete persona' })
+    $q.notify({ type: 'negative', message: t('personas.notifications.deleteFailed') })
   } finally {
     deleting.value = false
   }
@@ -905,7 +906,7 @@ const cropImageStyle = computed(() => {
 const generateCroppedBlob = async (): Promise<Blob> => {
   return new Promise((resolve, reject) => {
     if (!avatarCrop.imageUrl || !avatarUpload.file) {
-      reject(new Error('没有可裁剪的头像'))
+      reject(new Error(t('personas.notifications.avatarMissing')))
       return
     }
     const img = new Image()
@@ -919,7 +920,7 @@ const generateCroppedBlob = async (): Promise<Blob> => {
       canvas.height = outputSize
       const ctx = canvas.getContext('2d')
       if (!ctx) {
-        reject(new Error('Canvas 不可用'))
+        reject(new Error(t('personas.notifications.canvasUnavailable')))
         return
       }
       const scaleFactor = outputSize / cropBoxSize
@@ -936,7 +937,7 @@ const generateCroppedBlob = async (): Promise<Blob> => {
         if (blob) {
           resolve(blob)
         } else {
-          reject(new Error('生成头像失败'))
+          reject(new Error(t('personas.notifications.generateAvatarFailed')))
         }
       }, 'image/png')
     }

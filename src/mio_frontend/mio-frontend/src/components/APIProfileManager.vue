@@ -1,44 +1,44 @@
 <template>
   <div class="manager-container">
     <div class="header">
-      <h2>API Profiles</h2>
+      <h2>{{ $t('apiProfiles.title') }}</h2>
     </div>
     
     <div class="content-wrapper">
       <!-- Create Form -->
       <d-card class="create-card">
-        <template #header>Create New Profile</template>
+        <template #header>{{ $t('apiProfiles.createDialog.title') }}</template>
         <d-form layout="vertical">
-          <d-form-item label="Profile Name">
+          <d-form-item :label="$t('apiProfiles.createDialog.name')">
             <d-input v-model="newProfile.name" placeholder="e.g. GPT-4" />
           </d-form-item>
           
-          <d-form-item label="Base URL">
+          <d-form-item :label="$t('apiProfiles.createDialog.baseUrl')">
             <d-input v-model="newProfile.base_url" placeholder="https://api.openai.com/v1" />
           </d-form-item>
           
-          <d-form-item label="Model Name">
+          <d-form-item :label="$t('apiProfiles.createDialog.model')">
             <d-input v-model="newProfile.model" placeholder="gpt-4" />
           </d-form-item>
           
-          <d-form-item label="API Key">
+          <d-form-item :label="$t('apiProfiles.createDialog.apiKey')">
             <d-input v-model="newProfile.api_key" type="password" placeholder="sk-..." />
           </d-form-item>
           
-          <d-form-item label="Temperature">
+          <d-form-item :label="$t('apiProfiles.createDialog.temperature')">
             <d-input-number v-model="newProfile.temperature" :step="0.1" :min="0" :max="2" />
           </d-form-item>
           
           <d-form-item>
-            <d-button variant="solid" color="primary" @click="handleCreate" :disabled="!isValid">Create Profile</d-button>
+            <d-button variant="solid" color="primary" @click="handleCreate" :disabled="!isValid">{{ $t('apiProfiles.createDialog.create') }}</d-button>
           </d-form-item>
         </d-form>
       </d-card>
 
       <!-- List -->
       <div class="list-section">
-        <h3>Existing Profiles</h3>
-        <div v-if="loading" class="loading">Loading...</div>
+        <h3>{{ $t('apiProfiles.listTitle') }}</h3>
+        <div v-if="loading" class="loading">{{ $t('common.loading') }}</div>
         <div v-else class="profile-grid">
           <d-card v-for="profile in profiles" :key="profile.id" class="profile-card">
             <template #header>
@@ -49,15 +49,15 @@
             </template>
             <div class="card-content">
               <div class="info-row">
-                <span class="label">Base URL:</span>
+                <span class="label">{{ $t('apiProfiles.columns.baseUrl') }}:</span>
                 <span class="value">{{ profile.base_url }}</span>
               </div>
               <div class="info-row">
-                <span class="label">Key:</span>
+                <span class="label">{{ $t('apiProfiles.columns.apiKeyPreview') }}:</span>
                 <span class="value code">{{ profile.api_key_preview }}</span>
               </div>
               <div class="info-row">
-                <span class="label">Temp:</span>
+                <span class="label">{{ $t('apiProfiles.columns.temperature') }}:</span>
                 <span class="value">{{ profile.temperature }}</span>
               </div>
             </div>
@@ -70,10 +70,12 @@
 
 <script setup lang="ts">
 import { ref, onMounted, computed, reactive } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { getAPIProfiles, createAPIProfile, type APIProfile, authState } from '../api';
 
 const profiles = ref<APIProfile[]>([]);
 const loading = ref(false);
+const { t } = useI18n();
 
 const newProfile = reactive({
   name: '',
@@ -114,7 +116,7 @@ const handleCreate = async () => {
     
     await loadProfiles();
   } catch (e) {
-    alert('Failed to create profile');
+    alert(t('apiProfiles.notify.createFailed'));
     console.error(e);
   }
 };

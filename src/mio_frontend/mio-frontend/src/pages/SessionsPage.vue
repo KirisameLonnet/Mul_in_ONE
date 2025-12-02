@@ -1,13 +1,13 @@
 <template>
   <q-page padding>
     <div class="row items-center justify-between q-mb-md">
-      <div class="text-h4">Sessions</div>
+      <div class="text-h4">{{ t('sessionsPage.title') }}</div>
       <div class="row q-gutter-sm">
         <q-btn 
           v-if="selectedSessions.length > 0"
           color="negative" 
           icon="delete" 
-          :label="`Delete (${selectedSessions.length})`" 
+          :label="t('sessionsPage.deleteSelected', { count: selectedSessions.length })" 
           @click="openBatchDeleteDialog" 
           :loading="deleting"
         />
@@ -15,7 +15,7 @@
           v-model="searchQuery"
           dense
           outlined
-          placeholder="Search sessions..."
+          :placeholder="t('sessionsPage.searchPlaceholder')"
           class="q-mr-sm"
           style="min-width: 250px"
         >
@@ -23,7 +23,7 @@
             <q-icon name="search" />
           </template>
         </q-input>
-        <q-btn color="primary" icon="add" label="New Session" @click="openCreateSessionDialog" :loading="creating" />
+        <q-btn color="primary" icon="add" :label="t('sessionsPage.new')" @click="openCreateSessionDialog" :loading="creating" />
       </div>
     </div>
 
@@ -46,8 +46,8 @@
           <q-icon name="chat_bubble" color="primary" />
         </q-item-section>
         <q-item-section>
-          <q-item-label>{{ session.title || `Session #${session.id}` }}</q-item-label>
-          <q-item-label caption>{{ new Date(session.created_at).toLocaleString() }}</q-item-label>
+          <q-item-label>{{ session.title || t('sessionManager.chatTitle', { id: session.id }) }}</q-item-label>
+          <q-item-label caption>{{ t('sessionsPage.listCreated', { time: new Date(session.created_at).toLocaleString() }) }}</q-item-label>
         </q-item-section>
         <q-item-section side>
           <div class="row items-center q-gutter-sm">
@@ -59,7 +59,7 @@
               color="primary" 
               @click.prevent.stop="openEditSessionDialog(session)"
             >
-              <q-tooltip>Edit Session Detail</q-tooltip>
+              <q-tooltip>{{ t('sessionsPage.tooltips.edit') }}</q-tooltip>
             </q-btn>
             <q-btn 
               flat 
@@ -69,7 +69,7 @@
               color="negative" 
               @click.prevent.stop="openDeleteDialog(session)"
             >
-              <q-tooltip>Delete Session</q-tooltip>
+              <q-tooltip>{{ t('sessionsPage.tooltips.delete') }}</q-tooltip>
             </q-btn>
             <q-icon name="chevron_right" />
           </div>
@@ -77,7 +77,7 @@
       </q-item>
       <q-item v-if="filteredSessions.length === 0">
         <q-item-section class="text-center text-grey">
-          No sessions found.
+          {{ t('sessionsPage.empty') }}
         </q-item-section>
       </q-item>
     </q-list>
@@ -88,18 +88,18 @@
         <q-card-section class="bg-primary text-white">
           <div class="text-h6">
             <q-icon name="add_circle" class="q-mr-sm" />
-            Create New Session
+            {{ t('sessionsPage.createDialog.title') }}
           </div>
         </q-card-section>
 
         <q-card-section>
-          <q-input v-model="newSessionTitle" outlined dense label="Session Title (optional)" maxlength="255" class="q-mb-md" />
+          <q-input v-model="newSessionTitle" outlined dense :label="t('sessionsPage.createDialog.sessionTitle')" maxlength="255" class="q-mb-md" />
           <div class="row q-col-gutter-md q-mb-md">
             <div class="col-6">
-              <q-input v-model="newSessionDisplayName" outlined dense label="Your display name (optional)" maxlength="128" />
+              <q-input v-model="newSessionDisplayName" outlined dense :label="t('sessionsPage.createDialog.displayName')" maxlength="128" />
             </div>
             <div class="col-6">
-              <q-input v-model="newSessionHandle" outlined dense label="Your handle (optional)" maxlength="128" prefix="@" />
+              <q-input v-model="newSessionHandle" outlined dense :label="t('sessionsPage.createDialog.handle')" maxlength="128" prefix="@" />
             </div>
           </div>
           <q-input
@@ -107,9 +107,9 @@
             outlined
             autogrow
             type="textarea"
-            label="Describe yourself (optional)"
-            placeholder="Help agents understand who you are..."
-            hint="This helps agents understand your role in the conversation"
+            :label="t('sessionsPage.createDialog.persona')"
+            :placeholder="t('sessionsPage.createDialog.personaPlaceholder')"
+            :hint="t('sessionsPage.createDialog.personaHint')"
             :maxlength="500"
             counter
             rows="3"
@@ -117,10 +117,10 @@
         </q-card-section>
 
         <q-card-actions align="right">
-          <q-btn flat label="Cancel" color="grey" v-close-popup />
+          <q-btn flat :label="t('sessionsPage.createDialog.cancel')" color="grey" v-close-popup />
           <q-btn
             flat
-            label="Create"
+            :label="t('sessionsPage.createDialog.create')"
             color="primary"
             @click="handleCreateSession"
             :loading="creating"
@@ -134,18 +134,18 @@
         <q-card-section class="bg-secondary text-white">
           <div class="text-h6">
             <q-icon name="edit" class="q-mr-sm" />
-            Edit Session Detail
+            {{ t('sessionsPage.editDialog.title') }}
           </div>
         </q-card-section>
 
         <q-card-section>
-          <q-input v-model="editSessionTitle" outlined dense label="Session Title (optional)" maxlength="255" class="q-mb-md" />
+          <q-input v-model="editSessionTitle" outlined dense :label="t('sessionsPage.createDialog.sessionTitle')" maxlength="255" class="q-mb-md" />
           <div class="row q-col-gutter-md q-mb-md">
             <div class="col-6">
-              <q-input v-model="editSessionDisplayName" outlined dense label="Your display name (optional)" maxlength="128" />
+              <q-input v-model="editSessionDisplayName" outlined dense :label="t('sessionsPage.createDialog.displayName')" maxlength="128" />
             </div>
             <div class="col-6">
-              <q-input v-model="editSessionHandle" outlined dense label="Your handle (optional)" maxlength="128" prefix="@" />
+              <q-input v-model="editSessionHandle" outlined dense :label="t('sessionsPage.createDialog.handle')" maxlength="128" prefix="@" />
             </div>
           </div>
           <q-input
@@ -153,9 +153,9 @@
             outlined
             autogrow
             type="textarea"
-            label="Describe yourself (optional)"
-            placeholder="Help agents understand who you are..."
-            hint="This helps agents understand your role in the conversation"
+            :label="t('sessionsPage.createDialog.persona')"
+            :placeholder="t('sessionsPage.createDialog.personaPlaceholder')"
+            :hint="t('sessionsPage.createDialog.personaHint')"
             :maxlength="500"
             counter
             rows="3"
@@ -163,10 +163,10 @@
         </q-card-section>
 
         <q-card-actions align="right">
-          <q-btn flat label="Cancel" color="grey" v-close-popup />
+          <q-btn flat :label="t('sessionsPage.editDialog.cancel')" color="grey" v-close-popup />
           <q-btn
             flat
-            label="Save"
+            :label="t('sessionsPage.editDialog.save')"
             color="primary"
             @click="handleUpdateSession"
             :loading="updating"
@@ -180,12 +180,12 @@
       <q-card>
         <q-card-section class="row items-center">
           <q-avatar icon="warning" color="negative" text-color="white" />
-          <span class="q-ml-sm">Are you sure you want to delete this session? This action cannot be undone.</span>
+          <span class="q-ml-sm">{{ t('sessionsPage.deleteDialog.body') }}</span>
         </q-card-section>
 
         <q-card-actions align="right">
-          <q-btn flat label="Cancel" color="primary" v-close-popup />
-          <q-btn flat label="Delete" color="negative" @click="handleDeleteSession" :loading="deleting" />
+          <q-btn flat :label="t('sessionsPage.editDialog.cancel')" color="primary" v-close-popup />
+          <q-btn flat :label="t('sessionsPage.deleteDialog.delete')" color="negative" @click="handleDeleteSession" :loading="deleting" />
         </q-card-actions>
       </q-card>
     </q-dialog>
@@ -195,12 +195,12 @@
       <q-card>
         <q-card-section class="row items-center">
           <q-avatar icon="warning" color="negative" text-color="white" />
-          <span class="q-ml-sm">Are you sure you want to delete {{ selectedSessions.length }} sessions? This action cannot be undone.</span>
+          <span class="q-ml-sm">{{ t('sessionsPage.batchDeleteDialog.body', { count: selectedSessions.length }) }}</span>
         </q-card-section>
 
         <q-card-actions align="right">
-          <q-btn flat label="Cancel" color="primary" v-close-popup />
-          <q-btn flat label="Delete All" color="negative" @click="handleBatchDelete" :loading="deleting" />
+          <q-btn flat :label="t('sessionsPage.editDialog.cancel')" color="primary" v-close-popup />
+          <q-btn flat :label="t('sessionsPage.batchDeleteDialog.delete')" color="negative" @click="handleBatchDelete" :loading="deleting" />
         </q-card-actions>
       </q-card>
     </q-dialog>
@@ -212,6 +212,7 @@ import { ref, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { getSessions, createSession, updateSessionMeta, deleteSession, deleteSessions, type Session } from '../api'
 import { useQuasar } from 'quasar'
+import { useI18n } from 'vue-i18n'
 
 const sessions = ref<Session[]>([])
 const loading = ref(false)
@@ -243,6 +244,7 @@ const sessionToDelete = ref<Session | null>(null)
 
 const router = useRouter()
 const $q = useQuasar()
+const { t } = useI18n()
 
 const filteredSessions = computed(() => {
   if (!searchQuery.value) return sessions.value
@@ -261,7 +263,7 @@ const loadSessions = async () => {
   } catch (e) {
     $q.notify({
       type: 'negative',
-      message: 'Failed to load sessions'
+      message: t('sessionsPage.notify.loadFailed')
     })
   } finally {
     loading.value = false
@@ -313,7 +315,7 @@ const handleCreateSession = async () => {
   } catch (e) {
     $q.notify({
       type: 'negative',
-      message: 'Failed to create session'
+      message: t('sessionsPage.notify.createFailed')
     })
   } finally {
     creating.value = false
@@ -335,13 +337,13 @@ const handleUpdateSession = async () => {
     showEditDialog.value = false
     $q.notify({
       type: 'positive',
-      message: 'Session updated successfully'
+      message: t('sessionsPage.notify.updateSuccess')
     })
     await loadSessions()
   } catch (e) {
     $q.notify({
       type: 'negative',
-      message: 'Failed to update session'
+      message: t('sessionsPage.notify.updateFailed')
     })
   } finally {
     updating.value = false
@@ -356,13 +358,13 @@ const handleDeleteSession = async () => {
     showDeleteDialog.value = false
     $q.notify({
       type: 'positive',
-      message: 'Session deleted successfully'
+      message: t('sessionsPage.notify.deleteSuccess')
     })
     await loadSessions()
   } catch (e) {
     $q.notify({
       type: 'negative',
-      message: 'Failed to delete session'
+      message: t('sessionsPage.notify.deleteFailed')
     })
   } finally {
     deleting.value = false
@@ -377,13 +379,13 @@ const handleBatchDelete = async () => {
     showBatchDeleteDialog.value = false
     $q.notify({
       type: 'positive',
-      message: 'Sessions deleted successfully'
+      message: t('sessionsPage.notify.batchDeleteSuccess')
     })
     await loadSessions()
   } catch (e) {
     $q.notify({
       type: 'negative',
-      message: 'Failed to delete sessions'
+      message: t('sessionsPage.notify.batchDeleteFailed')
     })
   } finally {
     deleting.value = false

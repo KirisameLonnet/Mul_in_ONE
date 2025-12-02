@@ -1,32 +1,32 @@
 <template>
   <div class="manager-container">
     <div class="header">
-      <h2>Persona Management</h2>
+      <h2>{{ $t('personas.title') }}</h2>
     </div>
     
     <div class="content-wrapper">
       <!-- Create Form -->
       <d-card class="create-card">
-        <template #header>Create New Persona</template>
+        <template #header>{{ $t('personas.createDialog.title') }}</template>
         <d-form layout="vertical">
-          <d-form-item label="Name">
-            <d-input v-model="newPersona.name" placeholder="e.g. Coding Assistant" />
+          <d-form-item :label="$t('personas.createDialog.name')">
+            <d-input v-model="newPersona.name" :placeholder="$t('personas.placeholders.name')" />
           </d-form-item>
           
-          <d-form-item label="Handle">
-            <d-input v-model="newPersona.handle" placeholder="e.g. coder" />
+          <d-form-item :label="$t('personas.createDialog.handle')">
+            <d-input v-model="newPersona.handle" :placeholder="$t('personas.placeholders.handle')" />
           </d-form-item>
           
-          <d-form-item label="Tone">
-            <d-input v-model="newPersona.tone" placeholder="e.g. professional" />
+          <d-form-item :label="$t('personas.createDialog.tone')">
+            <d-input v-model="newPersona.tone" :placeholder="$t('personas.placeholders.tone')" />
           </d-form-item>
           
-          <d-form-item label="Proactivity (0.0 - 1.0)">
+          <d-form-item :label="$t('personas.createDialog.proactivity')">
             <d-input-number v-model="newPersona.proactivity" :step="0.1" :min="0" :max="1" />
           </d-form-item>
           
-          <d-form-item label="API Profile">
-            <d-select v-model="newPersona.api_profile_id" placeholder="Select API Profile">
+          <d-form-item :label="$t('personas.createDialog.apiProfile')">
+            <d-select v-model="newPersona.api_profile_id" :placeholder="$t('personas.placeholders.apiProfile')">
               <d-option 
                 v-for="p in apiProfiles" 
                 :key="p.id" 
@@ -37,23 +37,23 @@
           </d-form-item>
           
           <d-form-item>
-            <d-checkbox v-model="newPersona.is_default">Set as Default</d-checkbox>
+            <d-checkbox v-model="newPersona.is_default">{{ $t('personas.createDialog.isDefault') }}</d-checkbox>
           </d-form-item>
           
-          <d-form-item label="System Prompt">
-            <d-textarea v-model="newPersona.prompt" placeholder="Enter system prompt..." :rows="4" />
+          <d-form-item :label="$t('personas.createDialog.prompt')">
+            <d-textarea v-model="newPersona.prompt" :placeholder="$t('personas.placeholders.prompt')" :rows="4" />
           </d-form-item>
           
           <d-form-item>
-            <d-button variant="solid" color="primary" @click="handleCreate" :disabled="!isValid">Create Persona</d-button>
+            <d-button variant="solid" color="primary" @click="handleCreate" :disabled="!isValid">{{ $t('personas.createDialog.create') }}</d-button>
           </d-form-item>
         </d-form>
       </d-card>
 
       <!-- List -->
       <div class="list-section">
-        <h3>Existing Personas</h3>
-        <div v-if="loading" class="loading">Loading...</div>
+        <h3>{{ $t('personas.listTitle') }}</h3>
+        <div v-if="loading" class="loading">{{ $t('common.loading') }}</div>
         <div v-else class="persona-grid">
           <d-card v-for="persona in personas" :key="persona.id" class="persona-card">
             <template #header>
@@ -65,8 +65,8 @@
             <div class="card-content">
               <p class="prompt">{{ persona.prompt }}</p>
               <div class="meta-tags">
-                <d-tag type="info" variant="outline">Tone: {{ persona.tone }}</d-tag>
-                <d-tag type="success" variant="outline">Proactivity: {{ persona.proactivity }}</d-tag>
+                <d-tag type="info" variant="outline">{{ $t('personas.columns.tone') }}: {{ persona.tone }}</d-tag>
+                <d-tag type="success" variant="outline">{{ $t('personas.columns.proactivity') }}: {{ persona.proactivity }}</d-tag>
                 <d-tag v-if="persona.api_profile_name" type="warning" variant="outline">API: {{ persona.api_profile_name }}</d-tag>
               </div>
                 <div class="card-actions">
@@ -76,7 +76,7 @@
                     @click="handleRefreshRAG(persona.id)"
                     :loading="refreshingPersonaId === persona.id"
                   >
-                    刷新资料库
+                    {{ $t('personas.rag.refreshButton') }}
                   </d-button>
                 </div>
             </div>
@@ -89,12 +89,14 @@
 
 <script setup lang="ts">
 import { ref, onMounted, computed, reactive } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { getPersonas, createPersona, getAPIProfiles, type Persona, type APIProfile, authState } from '../api';
 
 const personas = ref<Persona[]>([]);
 const apiProfiles = ref<APIProfile[]>([]);
 const loading = ref(false);
 const refreshingPersonaId = ref<number | null>(null);
+const { t } = useI18n();
 
 const newPersona = reactive({
   name: '',
@@ -144,7 +146,7 @@ const handleCreate = async () => {
     
     await loadData();
   } catch (e) {
-    alert('Failed to create persona');
+    alert(t('personas.notifications.savePersonaFailed'));
     console.error(e);
   }
 };
@@ -168,9 +170,9 @@ const handleRefreshRAG = async (personaId: number) => {
     }
     
     const result = await response.json();
-    alert(`成功刷新！摄取了 ${result.documents_added} 个文档片段到 ${result.collection_name}`);
+    alert(t('personas.rag.refreshSuccess', { count: result.documents_added, collection: result.collection_name }));
   } catch (e: any) {
-    alert(`刷新失败：${e.message}`);
+    alert(t('personas.rag.refreshFailed', { message: e.message }));
     console.error(e);
   } finally {
     refreshingPersonaId.value = null;

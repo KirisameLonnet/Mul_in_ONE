@@ -2,22 +2,25 @@
   <q-layout view="lHh Lpr lFf">
     <q-page-container>
       <q-page class="flex flex-center bg-gradient">
+        <div class="lang-switcher">
+          <LanguageSwitcher />
+        </div>
         <div class="q-pa-md" style="max-width: 450px; width: 100%">
           <q-card class="login-card">
             <q-card-section class="text-center q-pb-none">
-              <div class="text-h4 text-weight-bold q-mb-sm">Mul-in-ONE</div>
-              <div class="text-subtitle2 text-grey-7">多智能体对话系统</div>
+              <div class="text-h4 text-weight-bold q-mb-sm">{{ t('login.title') }}</div>
+              <div class="text-subtitle2 text-grey-7">{{ t('login.subtitle') }}</div>
             </q-card-section>
 
             <q-card-section>
               <q-form @submit="handleLogin">
                 <q-input
                   v-model="email"
-                  label="邮箱"
+                  :label="t('login.email')"
                   type="email"
                   outlined
                   dense
-                  :rules="[val => !!val || '请输入邮箱']"
+                  :rules="[val => !!val || t('login.rules.email')]"
                   class="q-mb-md"
                 >
                   <template v-slot:prepend>
@@ -27,11 +30,11 @@
 
                 <q-input
                   v-model="password"
-                  label="密码"
+                  :label="t('login.password')"
                   :type="showPassword ? 'text' : 'password'"
                   outlined
                   dense
-                  :rules="[val => !!val || '请输入密码']"
+                  :rules="[val => !!val || t('login.rules.password')]"
                   class="q-mb-md"
                 >
                   <template v-slot:prepend>
@@ -47,7 +50,7 @@
                 </q-input>
 
                 <q-btn
-                  label="登录"
+                  :label="t('login.signIn')"
                   type="submit"
                   color="primary"
                   class="full-width q-mb-md"
@@ -60,12 +63,12 @@
             <q-separator />
 
             <q-card-section class="text-center q-pt-md">
-              <div class="text-subtitle2 text-grey-7 q-mb-sm">第三方登录</div>
+              <div class="text-subtitle2 text-grey-7 q-mb-sm">{{ t('login.thirdParty') }}</div>
               <div class="row q-gutter-sm justify-center">
                 <q-btn
                   flat
                   dense
-                  label="Gitee"
+                  :label="t('login.gitee')"
                   :style="{ color: $q.dark.isActive ? 'white' : '#C71D23' }"
                   @click="loginWithGitee"
                   :disable="!giteeAvailable"
@@ -73,14 +76,14 @@
                 <q-btn
                   flat
                   dense
-                  label="GitHub"
+                  :label="t('login.github')"
                   :style="{ color: $q.dark.isActive ? 'white' : '#24292e' }"
                   @click="loginWithGitHub"
                   :disable="!githubAvailable"
                 />
               </div>
               <div class="text-caption text-grey-6 q-mt-sm">
-                还没有账号？<a href="/register" class="text-primary">注册</a>
+                {{ t('login.noAccount') }}<a href="/register" class="text-primary">{{ t('login.goRegister') }}</a>
               </div>
             </q-card-section>
           </q-card>
@@ -102,10 +105,13 @@ import { ref } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { authLogin, login, getCurrentUser, setVerificationStatus } from '../api'
 import { useQuasar } from 'quasar'
+import { useI18n } from 'vue-i18n'
+import LanguageSwitcher from '../components/LanguageSwitcher.vue'
 
 const router = useRouter()
 const route = useRoute()
 const $q = useQuasar()
+const { t } = useI18n()
 
 const email = ref('')
 const password = ref('')
@@ -145,7 +151,7 @@ const handleLogin = async () => {
     
     $q.notify({
       type: 'positive',
-      message: `欢迎回来，${userInfo.display_name || userInfo.username}！`
+      message: t('login.welcomeBack', { name: userInfo.display_name || userInfo.username })
     })
     
     // 跳转到目标页面或首页
@@ -153,7 +159,7 @@ const handleLogin = async () => {
     router.push(redirect)
   } catch (err: any) {
     console.error('登录失败:', err)
-    error.value = err.response?.data?.detail || '登录失败，请检查邮箱和密码'
+    error.value = err.response?.data?.detail || t('login.loginFailed')
   } finally {
     loading.value = false
   }
@@ -181,11 +187,11 @@ const handleOAuthCallback = async () => {
       })
       $q.notify({
         type: 'positive',
-        message: `欢迎，${userInfo.display_name || userInfo.username}！`
+        message: t('login.welcomeBack', { name: userInfo.display_name || userInfo.username })
       })
       router.push('/')
     } catch (err) {
-      error.value = 'OAuth 登录失败'
+      error.value = t('login.oauthFailed')
     }
   }
 }
@@ -201,5 +207,11 @@ handleOAuthCallback()
 
 .login-card {
   box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+}
+
+.lang-switcher {
+  position: absolute;
+  top: 16px;
+  right: 16px;
 }
 </style>

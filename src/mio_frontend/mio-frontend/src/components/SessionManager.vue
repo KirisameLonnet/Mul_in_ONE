@@ -3,11 +3,11 @@
     <!-- List View -->
     <div v-if="!currentSessionId" class="list-view">
       <div class="header">
-        <h2>Sessions</h2>
-        <d-button @click="handleCreateSession" variant="solid" color="primary">New Session</d-button>
+        <h2>{{ $t('sessionManager.title') }}</h2>
+        <d-button @click="handleCreateSession" variant="solid" color="primary">{{ $t('sessionManager.new') }}</d-button>
       </div>
       
-      <div v-if="loading" class="loading">Loading sessions...</div>
+      <div v-if="loading" class="loading">{{ $t('sessionManager.loading') }}</div>
       <div v-else class="session-list">
         <div 
           v-for="session in sessions" 
@@ -17,7 +17,7 @@
         >
           <div class="session-id">#{{ session.id }}</div>
           <div class="session-meta">
-            Created: {{ new Date(session.created_at).toLocaleString() }}
+            {{ $t('sessionManager.created', { time: new Date(session.created_at).toLocaleString() }) }}
           </div>
         </div>
       </div>
@@ -26,8 +26,8 @@
     <!-- Chat View -->
     <div v-else class="chat-view">
       <div class="chat-header">
-        <d-button @click="exitSession" variant="text" icon="icon-arrow-left">Back</d-button>
-        <h3>Session #{{ currentSessionId }}</h3>
+        <d-button @click="exitSession" variant="text" icon="icon-arrow-left">{{ $t('sessionManager.back') }}</d-button>
+        <h3>{{ $t('sessionManager.chatTitle', { id: currentSessionId }) }}</h3>
       </div>
       
       <div class="chat-layout">
@@ -43,7 +43,7 @@
         
         <div class="controls-area">
           <div class="persona-selector">
-            <label>Target Personas:</label>
+            <label>{{ $t('sessionManager.targetPersonas') }}</label>
             <div class="tags">
               <d-tag 
                 v-for="p in availablePersonas" 
@@ -62,7 +62,7 @@
               :value="newMessage" 
               @change="(val: string) => newMessage = val"
               @submit="handleSend"
-              placeholder="Type a message..."
+              :placeholder="$t('sessionManager.inputPlaceholder')"
               :autoClear="true"
             />
           </div>
@@ -74,6 +74,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted, nextTick, onUnmounted } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { 
   getSessions, 
   createSession, 
@@ -91,6 +92,7 @@ const sessions = ref<Session[]>([]);
 const messages = ref<Message[]>([]);
 const availablePersonas = ref<Persona[]>([]);
 const selectedPersonas = ref<string[]>([]);
+const { t } = useI18n();
 
 const currentSessionId = ref<string | null>(null);
 const loading = ref(false);
@@ -170,7 +172,7 @@ const handleCreateSession = async () => {
     await loadSessions();
     enterSession(id);
   } catch (e) {
-    alert('Failed to create session');
+    alert(t('sessionManager.errors.create'));
   }
 };
 
@@ -289,7 +291,7 @@ const handleSend = async (content: string) => {
     // but it's safe to do so to get the server-side ID of the user message.
     // await refreshMessages(); 
   } catch (e) {
-    alert('Failed to send message');
+    alert(t('sessionManager.errors.send'));
     console.error(e);
   }
 };

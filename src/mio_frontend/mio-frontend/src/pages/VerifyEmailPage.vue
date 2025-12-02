@@ -2,6 +2,9 @@
   <q-layout view="lHh Lpr lFf">
     <q-page-container>
       <q-page class="flex flex-center bg-gradient">
+        <div class="lang-switcher">
+          <LanguageSwitcher />
+        </div>
         <div class="q-pa-md" style="max-width: 450px; width: 100%">
           <q-card>
             <q-card-section class="text-center q-pb-none">
@@ -11,21 +14,21 @@
               <div class="text-h5 q-mb-sm">{{ title }}</div>
               <div class="text-subtitle2 text-grey-7">{{ message }}</div>
               <div v-if="status === 'pending'" class="text-caption text-grey-6 q-mt-sm">
-                没收到？请检查垃圾邮箱或点击验证邮件中的「Verify Email」按钮。
+                {{ t('verifyEmail.pendingHint') }}
               </div>
             </q-card-section>
 
             <q-card-section class="text-center">
               <q-btn
                 v-if="status === 'success'"
-                label="立即登录"
+                :label="t('verifyEmail.loginNow')"
                 color="primary"
                 @click="router.push('/login')"
                 class="q-mt-md"
               />
               <q-btn
                 v-else-if="status === 'error'"
-                label="返回注册"
+                :label="t('verifyEmail.backToRegister')"
                 color="primary"
                 outline
                 @click="router.push('/register')"
@@ -36,7 +39,7 @@
                 class="q-mt-md column items-center q-gutter-sm"
               >
                 <q-btn
-                  label="我已完成验证"
+                  :label="t('verifyEmail.iVerified')"
                   color="primary"
                   @click="router.push('/login')"
                 />
@@ -57,7 +60,7 @@
                 <q-btn
                   flat
                   color="grey"
-                  label="返回注册"
+                  :label="t('verifyEmail.backToRegister')"
                   @click="router.push('/register')"
                 />
               </div>
@@ -74,13 +77,16 @@
 import { ref, onMounted, onUnmounted, computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { api, requestVerificationEmail, setVerificationStatus, authState } from '../api'
+import { useI18n } from 'vue-i18n'
+import LanguageSwitcher from '../components/LanguageSwitcher.vue'
 
 const router = useRouter()
 const route = useRoute()
+const { t } = useI18n()
 
 const status = ref<'loading' | 'success' | 'error' | 'pending'>('loading')
-const title = ref('验证中...')
-const message = ref('请稍候，正在验证你的邮箱')
+const title = ref(t('verifyEmail.titleVerifying'))
+const message = ref(t('verifyEmail.msgVerifying'))
 const email = ref<string | null>(null)
 const resendLoading = ref(false)
 const resendSuccess = ref('')
@@ -120,25 +126,25 @@ onMounted(async () => {
 
   if (!token) {
     status.value = 'pending'
-    title.value = '验证你的邮箱'
+    title.value = t('verifyEmail.titleNeedVerify')
     message.value = email.value
-      ? `我们已经将验证邮件发送至 ${email.value}，请点击邮件中的链接完成激活。`
-      : '我们已经将验证邮件发送至你的邮箱，请点击邮件中的链接完成激活。'
+      ? t('verifyEmail.msgSentWithEmail', { email: email.value })
+      : t('verifyEmail.msgSent')
     return
   }
   
   try {
     await api.post('/auth/verify', { token })
     status.value = 'success'
-    title.value = '验证成功！'
-    message.value = '你的邮箱已验证，现在可以登录使用了'
+    title.value = t('verifyEmail.titleSuccess')
+    message.value = t('verifyEmail.msgSuccess')
     if (authState.isLoggedIn) {
       setVerificationStatus(true)
     }
   } catch (error: any) {
     status.value = 'error'
-    title.value = '验证失败'
-    message.value = error.response?.data?.detail || '验证令牌无效或已过期'
+    title.value = t('verifyEmail.titleFailed')
+    message.value = error.response?.data?.detail || t('verifyEmail.msgFailed')
   }
 })
 
@@ -150,9 +156,9 @@ onUnmounted(() => {
 
 const resendButtonLabel = computed(() => {
   if (resendCooldown.value > 0) {
-    return `重新发送 (${resendCooldown.value}s)`
+    return t('verifyEmail.resendCooldown', { seconds: resendCooldown.value })
   }
-  return resendLoading.value ? '发送中...' : '重新发送验证邮件'
+  return resendLoading.value ? t('verifyEmail.resendSending') : t('verifyEmail.resend')
 })
 
 const startCooldown = () => {
@@ -172,7 +178,7 @@ const startCooldown = () => {
 
 const handleResend = async () => {
   if (!email.value) {
-    resendError.value = '无法确定邮箱地址，请返回重新注册'
+    resendError.value = t('verifyEmail.resendFailedMissingEmail')
     return
   }
   if (resendCooldown.value > 0 || resendLoading.value) {
@@ -184,10 +190,10 @@ const handleResend = async () => {
   resendSuccess.value = ''
   try {
     await requestVerificationEmail(email.value)
-    resendSuccess.value = '验证邮件已重新发送，请查收'
+    resendSuccess.value = t('verifyEmail.resendSuccess')
     startCooldown()
   } catch (error: any) {
-    resendError.value = error.response?.data?.detail || '发送失败，请稍后重试'
+    resendError.value = error.response?.data?.detail || t('verifyEmail.resendFailed')
   } finally {
     resendLoading.value = false
   }
@@ -197,5 +203,11 @@ const handleResend = async () => {
 <style scoped>
 .bg-gradient {
   background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-accent) 100%);
+}
+
+.lang-switcher {
+  position: absolute;
+  top: 16px;
+  right: 16px;
 }
 </style>

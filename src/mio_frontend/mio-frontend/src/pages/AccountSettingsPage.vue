@@ -1,7 +1,7 @@
 <template>
   <q-page padding>
-    <div class="text-h4 q-mb-xs">Account Settings</div>
-    <div class="text-subtitle2 text-grey-7 q-mb-lg">Manage your profile information and account lifecycle.</div>
+    <div class="text-h4 q-mb-xs">{{ t('account.title') }}</div>
+    <div class="text-subtitle2 text-grey-7 q-mb-lg">{{ t('account.subtitle') }}</div>
 
     <div v-if="loading" class="flex flex-center q-my-xl">
       <q-spinner size="3em" color="primary" />
@@ -11,15 +11,15 @@
       <q-banner v-if="loadError" class="bg-negative text-white q-mb-md" rounded>
         {{ loadError }}
         <template #action>
-          <q-btn flat color="white" label="Retry" @click="loadUser" />
+          <q-btn flat color="white" :label="t('common.retry')" @click="loadUser" />
         </template>
       </q-banner>
 
       <q-card v-if="user && !user.is_verified" class="q-mb-lg warning-card">
         <q-card-section class="bg-warning text-black">
-          <div class="text-h6">Email verification required</div>
+          <div class="text-h6">{{ t('account.verifyRequiredTitle') }}</div>
           <div class="text-body2">
-            You must verify your email before creating sessions, personas, or API profiles. Please check your inbox and click the link. Not seeing the email?
+            {{ t('account.verifyRequiredDesc') }}
           </div>
         </q-card-section>
         <q-card-section class="column q-gutter-sm">
@@ -32,7 +32,7 @@
           <q-btn
             outline
             color="primary"
-            label="I've verified my email"
+            :label="t('account.iveVerified')"
             :loading="manualRefreshLoading"
             :disable="manualRefreshLoading"
             @click="handleManualVerificationRefresh"
@@ -49,56 +49,56 @@
 
       <q-card class="q-mb-lg">
         <q-card-section class="bg-primary text-white">
-          <div class="text-h6">Profile</div>
+          <div class="text-h6">{{ t('account.profile') }}</div>
         </q-card-section>
         <q-card-section>
           <q-list separator>
             <q-item>
               <q-item-section>
-                <q-item-label>Email</q-item-label>
+                <q-item-label>{{ t('account.email') }}</q-item-label>
                 <q-item-label caption>{{ user?.email || '-' }}</q-item-label>
               </q-item-section>
               <q-item-section side>
                 <q-chip :color="user?.is_verified ? 'positive' : 'warning'" text-color="white" dense>
-                  {{ user?.is_verified ? 'Verified' : 'Pending' }}
+                  {{ user?.is_verified ? t('common.verified') : t('common.pending') }}
                 </q-chip>
               </q-item-section>
             </q-item>
 
             <q-item>
               <q-item-section>
-                <q-item-label>Username</q-item-label>
+                <q-item-label>{{ t('account.username') }}</q-item-label>
                 <q-item-label caption>{{ user?.username || '-' }}</q-item-label>
               </q-item-section>
             </q-item>
 
             <q-item>
               <q-item-section>
-                <q-item-label>Display name</q-item-label>
-                <q-item-label caption>{{ user?.display_name || 'Not set' }}</q-item-label>
+                <q-item-label>{{ t('account.displayName') }}</q-item-label>
+                <q-item-label caption>{{ user?.display_name || t('common.notSet') }}</q-item-label>
               </q-item-section>
             </q-item>
 
             <q-item>
               <q-item-section>
-                <q-item-label>Role</q-item-label>
-                <q-item-label caption>{{ user?.is_superuser ? 'Administrator' : 'Standard user' }}</q-item-label>
+                <q-item-label>{{ t('account.role') }}</q-item-label>
+                <q-item-label caption>{{ user?.is_superuser ? t('account.administrator') : t('account.standardUser') }}</q-item-label>
               </q-item-section>
               <q-item-section side>
                 <q-chip :color="user?.is_superuser ? 'secondary' : 'primary'" text-color="white" dense>
-                  {{ user?.is_superuser ? 'Superuser' : 'User' }}
+                  {{ user?.is_superuser ? t('account.superuser') : t('account.user') }}
                 </q-chip>
               </q-item-section>
             </q-item>
 
             <q-item>
               <q-item-section>
-                <q-item-label>Status</q-item-label>
-                <q-item-label caption>{{ user?.is_active ? 'Active' : 'Inactive' }}</q-item-label>
+                <q-item-label>{{ t('account.status') }}</q-item-label>
+                <q-item-label caption>{{ user?.is_active ? t('account.active') : t('account.inactive') }}</q-item-label>
               </q-item-section>
               <q-item-section side>
                 <q-chip :color="user?.is_active ? 'positive' : 'negative'" text-color="white" dense>
-                  {{ user?.is_active ? 'Active' : 'Disabled' }}
+                  {{ user?.is_active ? t('account.active') : t('account.inactive') }}
                 </q-chip>
               </q-item-section>
             </q-item>
@@ -108,17 +108,17 @@
 
       <q-card class="danger-card">
         <q-card-section class="bg-negative text-white">
-          <div class="text-h6">Danger Zone</div>
-          <div>Permanently delete your Mul in ONE account.</div>
+          <div class="text-h6">{{ t('account.dangerZone') }}</div>
+          <div>{{ t('account.dangerDesc') }}</div>
         </q-card-section>
         <q-card-section>
           <p class="q-mb-md">
-            Deleting your account removes all sessions, personas, API profiles, and stored data. This action cannot be undone.
+            {{ t('account.dangerDetail') }}
           </p>
           <q-btn
             color="negative"
             icon="delete_forever"
-            label="Delete Account"
+            :label="t('account.deleteAccount')"
             @click="openDeleteDialog"
             :disable="resendLoading"
           />
@@ -128,36 +128,36 @@
 
     <q-dialog v-model="showDeleteDialog" persistent @hide="confirmKeywordInput = ''">
       <q-card style="min-width: 420px">
-        <q-card-section class="bg-negative text-white">
-          <div class="text-h6">
-            <q-icon name="warning" class="q-mr-sm" />
-            Confirm Account Deletion
-          </div>
-        </q-card-section>
+          <q-card-section class="bg-negative text-white">
+            <div class="text-h6">
+              <q-icon name="warning" class="q-mr-sm" />
+              {{ t('account.deleteDialogTitle') }}
+            </div>
+          </q-card-section>
 
-        <q-card-section>
-          <p class="q-mb-md">
-            This will permanently delete your account and all associated data. Please type <strong>{{ CONFIRM_KEYWORD }}</strong> to continue.
-          </p>
-          <q-input
-            v-model="confirmKeywordInput"
-            outlined
-            dense
-            label="Type DELETE to confirm"
-            autofocus
-          />
-        </q-card-section>
+          <q-card-section>
+            <p class="q-mb-md">
+              {{ t('account.deleteDialogBody', { keyword: CONFIRM_KEYWORD }) }}
+            </p>
+            <q-input
+              v-model="confirmKeywordInput"
+              outlined
+              dense
+              :label="t('account.deleteConfirmPlaceholder')"
+              autofocus
+            />
+          </q-card-section>
 
-        <q-card-actions align="right">
-          <q-btn flat label="Cancel" color="grey" v-close-popup :disable="deleting" />
-          <q-btn
-            flat
-            label="Delete"
-            color="negative"
-            :disable="!canConfirmDeletion || deleting"
-            :loading="deleting"
-            @click="handleDeleteAccount"
-          />
+          <q-card-actions align="right">
+            <q-btn flat :label="t('common.cancel')" color="grey" v-close-popup :disable="deleting" />
+            <q-btn
+              flat
+              :label="t('account.delete')"
+              color="negative"
+              :disable="!canConfirmDeletion || deleting"
+              :loading="deleting"
+              @click="handleDeleteAccount"
+            />
         </q-card-actions>
       </q-card>
     </q-dialog>
@@ -169,6 +169,7 @@ import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useQuasar } from 'quasar'
 import { getCurrentUser, deleteAccount, logout, requestVerificationEmail, authState, type UserInfo } from '../api'
+import { useI18n } from 'vue-i18n'
 
 const user = ref<UserInfo | null>(null)
 const loading = ref(true)
@@ -185,14 +186,15 @@ let cooldownTimer: number | null = null
 
 const router = useRouter()
 const $q = useQuasar()
+const { t } = useI18n()
 
 const CONFIRM_KEYWORD = 'DELETE'
 const canConfirmDeletion = computed(() => confirmKeywordInput.value === CONFIRM_KEYWORD)
 const resendButtonLabel = computed(() => {
   if (resendCooldown.value > 0) {
-    return `Resend verification email (${resendCooldown.value}s)`
+    return t('account.resendCooldown', { seconds: resendCooldown.value })
   }
-  return resendLoading.value ? 'Sending...' : 'Resend verification email'
+  return resendLoading.value ? t('account.resendSending') : t('account.resend')
 })
 
 const loadUser = async () => {
@@ -201,7 +203,7 @@ const loadUser = async () => {
   try {
     user.value = await getCurrentUser()
   } catch (error) {
-    loadError.value = 'Failed to load account information'
+    loadError.value = t('account.loadError')
   } finally {
     loading.value = false
   }
@@ -224,11 +226,11 @@ const handleDeleteAccount = async () => {
   try {
     await deleteAccount()
     logout()
-    $q.notify({ type: 'positive', message: 'Account deleted successfully' })
+    $q.notify({ type: 'positive', message: t('account.notifications.deleteSuccess') })
     router.push('/register')
   } catch (error) {
     const detail = (error as { response?: { data?: { detail?: string } } })?.response?.data?.detail
-    $q.notify({ type: 'negative', message: detail || 'Failed to delete account' })
+    $q.notify({ type: 'negative', message: detail || t('account.notifications.deleteFailed') })
   } finally {
     deleting.value = false
     showDeleteDialog.value = false
@@ -252,7 +254,7 @@ const startCooldown = () => {
 
 const handleResend = async () => {
   if (!user.value?.email) {
-    resendError.value = 'Missing email address'
+    resendError.value = t('account.notifications.resendMissingEmail')
     return
   }
   if (resendCooldown.value > 0 || resendLoading.value) {
@@ -263,10 +265,10 @@ const handleResend = async () => {
   resendSuccess.value = ''
   try {
     await requestVerificationEmail(user.value.email)
-    resendSuccess.value = 'Verification email re-sent'
+    resendSuccess.value = t('account.notifications.resendSuccess')
     startCooldown()
   } catch (error: any) {
-    resendError.value = error.response?.data?.detail || 'Failed to send verification email'
+    resendError.value = error.response?.data?.detail || t('account.notifications.resendFailed')
   } finally {
     resendLoading.value = false
   }
@@ -277,13 +279,13 @@ const handleManualVerificationRefresh = async () => {
   try {
     const profile = await refreshUserSilently()
     if (profile.is_verified) {
-      $q.notify({ type: 'positive', message: 'Email verified! You now have full access.' })
+      $q.notify({ type: 'positive', message: t('account.notifications.manualVerified') })
     } else {
-      $q.notify({ type: 'warning', message: 'Still pending. Please check your inbox or resend the link.' })
+      $q.notify({ type: 'warning', message: t('account.notifications.manualPending') })
     }
   } catch (error) {
     const detail = (error as { response?: { data?: { detail?: string } } })?.response?.data?.detail
-    $q.notify({ type: 'negative', message: detail || 'Unable to refresh verification status' })
+    $q.notify({ type: 'negative', message: detail || t('account.notifications.manualRefreshFailed') })
   } finally {
     manualRefreshLoading.value = false
   }
@@ -299,7 +301,7 @@ watch(
     if (isVerified && !wasVerified && (!user.value || !user.value.is_verified)) {
       try {
         await refreshUserSilently()
-        $q.notify({ type: 'positive', message: 'Email verified! Account data refreshed.' })
+        $q.notify({ type: 'positive', message: t('account.notifications.verifiedRefreshed') })
       } catch (error) {
         console.error('Failed to refresh account data', error)
       }

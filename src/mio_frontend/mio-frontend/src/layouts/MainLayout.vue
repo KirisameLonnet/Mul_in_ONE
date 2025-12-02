@@ -4,10 +4,11 @@
       <q-toolbar>
         <q-btn flat dense round icon="menu" aria-label="Menu" @click="toggleLeftDrawer" />
         <q-toolbar-title>
-          MIO Dashboard
+          {{ $t('layout.title') }}
         </q-toolbar-title>
+        <LanguageSwitcher class="q-mr-sm" />
         <q-btn flat round :icon="$q.dark.isActive ? 'dark_mode' : 'light_mode'" @click="toggleDarkMode" class="q-mr-sm" />
-        <div class="q-mr-md">User: {{ username }}</div>
+        <div class="q-mr-md">{{ $t('nav.user', { username }) }}</div>
         <q-btn flat round icon="logout" @click="handleLogout" />
       </q-toolbar>
     </q-header>
@@ -15,7 +16,7 @@
     <q-drawer v-model="leftDrawerOpen" show-if-above bordered>
       <q-list>
         <q-item-label header>
-          Menu
+          {{ $t('nav.menu') }}
         </q-item-label>
 
         <q-item clickable v-ripple to="/sessions">
@@ -23,7 +24,7 @@
             <q-icon name="chat" />
           </q-item-section>
           <q-item-section>
-            Sessions
+            {{ $t('nav.sessions') }}
           </q-item-section>
         </q-item>
 
@@ -32,7 +33,7 @@
             <q-icon name="people" />
           </q-item-section>
           <q-item-section>
-            Personas
+            {{ $t('nav.personas') }}
           </q-item-section>
         </q-item>
 
@@ -41,7 +42,7 @@
             <q-icon name="settings" />
           </q-item-section>
           <q-item-section>
-            API Profiles
+            {{ $t('nav.profiles') }}
           </q-item-section>
         </q-item>
 
@@ -50,7 +51,7 @@
             <q-icon name="manage_accounts" />
           </q-item-section>
           <q-item-section>
-            Account Settings
+            {{ $t('nav.account') }}
           </q-item-section>
         </q-item>
 
@@ -59,7 +60,7 @@
             <q-icon name="security" />
           </q-item-section>
           <q-item-section>
-            Admin Users
+            {{ $t('nav.adminUsers') }}
           </q-item-section>
         </q-item>
 
@@ -68,7 +69,7 @@
             <q-icon name="bug_report" />
           </q-item-section>
           <q-item-section>
-            DEBUG
+            {{ $t('nav.debug') }}
           </q-item-section>
         </q-item>
       </q-list>
@@ -78,10 +79,10 @@
       <div class="q-pa-md" v-if="needsVerification">
         <q-banner class="bg-warning text-black" rounded dense>
           <div>
-            邮箱未验证：请前往邮箱点击验证链接后再继续使用写操作。可在 Account Settings 页面重新发送邮件。
+            {{ $t('layout.verifyBanner') }}
           </div>
           <template #action>
-            <q-btn flat color="black" label="去验证" @click="goToVerify" />
+            <q-btn flat color="black" :label="$t('layout.goVerify')" @click="goToVerify" />
           </template>
         </q-banner>
       </div>
@@ -92,13 +93,16 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { useQuasar } from 'quasar'
 import { authState, logout, EMAIL_VERIFICATION_EVENT } from '../api'
+import LanguageSwitcher from '../components/LanguageSwitcher.vue'
 
 const leftDrawerOpen = ref(false)
 const router = useRouter()
 const $q = useQuasar()
+const { t } = useI18n()
 
 const username = computed(() => authState.username)
 const needsVerification = computed(() => authState.isLoggedIn && !authState.isVerified)
@@ -122,7 +126,7 @@ function goToVerify() {
 }
 
 const handleVerificationEvent = () => {
-  $q.notify({ type: 'warning', message: '请先完成邮箱验证后再执行此操作' })
+  $q.notify({ type: 'warning', message: t('layout.verifyNotify') })
   goToVerify()
 }
 

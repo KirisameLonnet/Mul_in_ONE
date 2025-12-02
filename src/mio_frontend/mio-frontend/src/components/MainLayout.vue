@@ -11,25 +11,29 @@
       <d-menu :select-keys="[currentView]" @select="onMenuSelect">
         <d-menu-item key="sessions">
           <template #icon><i class="icon-message"></i></template>
-          Sessions
+          {{ $t('nav.sessions') }}
         </d-menu-item>
         <d-menu-item key="personas">
           <template #icon><i class="icon-people"></i></template>
-          Personas
+          {{ $t('nav.personas') }}
         </d-menu-item>
         <d-menu-item key="profiles">
           <template #icon><i class="icon-setting"></i></template>
-          API Profiles
+          {{ $t('nav.profiles') }}
         </d-menu-item>
         <d-menu-item key="debug">
           <template #icon><i class="icon-info"></i></template>
-          DEBUG
+          {{ $t('nav.debug') }}
         </d-menu-item>
       </d-menu>
 
+      <div class="language-area">
+        <LanguageSwitcher />
+      </div>
+
       <div class="footer">
         <d-button variant="text" color="danger" @click="handleLogout" width="100%">
-          <i class="icon-logout"></i> Logout
+          <i class="icon-logout"></i> {{ $t('nav.logout') }}
         </d-button>
       </div>
     </d-aside>
@@ -50,6 +54,7 @@ import SessionManager from './SessionManager.vue';
 import PersonaManager from './PersonaManager.vue';
 import APIProfileManager from './APIProfileManager.vue';
 import DebugPage from '../pages/DebugPage.vue';
+import LanguageSwitcher from './LanguageSwitcher.vue';
 
 const currentView = ref('sessions');
 
@@ -95,6 +100,10 @@ const handleLogout = () => {
 .details .tenant {
   font-size: 0.8rem;
   color: #888;
+}
+
+.language-area {
+  padding: 0 1rem 1rem;
 }
 
 .footer {

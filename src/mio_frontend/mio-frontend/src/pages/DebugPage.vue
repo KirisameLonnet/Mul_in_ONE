@@ -3,10 +3,10 @@
     <div class="controls">
       <d-select v-model="lineCount" :options="lineOptions" style="width: 160px" />
       <d-button @click="refresh" :loading="loading">
-        <i class="icon-refresh"></i> 刷新
+        <i class="icon-refresh"></i> {{ t('debug.refresh') }}
       </d-button>
       <d-switch v-model="autoRefresh" />
-      <span class="label">自动刷新</span>
+      <span class="label">{{ t('debug.autoRefresh') }}</span>
       <span class="path">{{ logPath }}</span>
     </div>
     <div class="log-view" ref="logView">
@@ -16,7 +16,8 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, onBeforeUnmount, ref } from 'vue';
+import { onMounted, onBeforeUnmount, ref, computed } from 'vue';
+import { useI18n } from 'vue-i18n';
 
 const logs = ref('');
 const logPath = ref('');
@@ -24,12 +25,13 @@ const loading = ref(false);
 const autoRefresh = ref(true);
 const timer = ref<number | null>(null);
 const lineCount = ref(1000);
-const lineOptions = [
-  { label: '200 行', value: 200 },
-  { label: '500 行', value: 500 },
-  { label: '1000 行', value: 1000 },
-  { label: '2000 行', value: 2000 },
-];
+const { t } = useI18n();
+const lineOptions = computed(() => [
+  { label: t('debug.options.200'), value: 200 },
+  { label: t('debug.options.500'), value: 500 },
+  { label: t('debug.options.1000'), value: 1000 },
+  { label: t('debug.options.2000'), value: 2000 },
+]);
 
 async function refresh() {
   loading.value = true;
@@ -44,7 +46,7 @@ async function refresh() {
       if (el) el.scrollTop = el.scrollHeight;
     });
   } catch (e) {
-    logs.value = `<获取日志失败: ${e}>`;
+    logs.value = `<${t('debug.loadFailed', { error: e })}>`;
   } finally {
     loading.value = false;
   }

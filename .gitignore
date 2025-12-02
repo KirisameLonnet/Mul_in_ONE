@@ -25,6 +25,7 @@ pgdata/
 *.sqlite
 *.sqlite3
 *.db
+logs/
 
 # Milvus 数据
 .milvus/

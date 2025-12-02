@@ -2,23 +2,26 @@
   <q-layout view="lHh Lpr lFf">
     <q-page-container>
       <q-page class="flex flex-center bg-gradient">
+        <div class="lang-switcher">
+          <LanguageSwitcher />
+        </div>
         <div class="q-pa-md" style="max-width: 450px; width: 100%">
           <q-card class="register-card">
             <q-card-section class="text-center q-pb-none">
-              <div class="text-h4 text-weight-bold q-mb-sm">创建账号</div>
-              <div class="text-subtitle2 text-grey-7">加入 Mul-in-ONE</div>
+              <div class="text-h4 text-weight-bold q-mb-sm">{{ t('register.title') }}</div>
+              <div class="text-subtitle2 text-grey-7">{{ t('register.subtitle') }}</div>
             </q-card-section>
 
             <q-card-section>
               <q-form @submit="handleRegister">
                 <q-input
                   v-model="form.username"
-                  label="用户名"
+                  :label="t('register.username')"
                   outlined
                   dense
                   :rules="[
-                    val => !!val || '请输入用户名',
-                    val => val.length >= 3 || '用户名至少3个字符'
+                    val => !!val || t('register.rules.usernameRequired'),
+                    val => val.length >= 3 || t('register.rules.usernameLength')
                   ]"
                   class="q-mb-md"
                 >
@@ -29,13 +32,13 @@
 
                 <q-input
                   v-model="form.email"
-                  label="邮箱"
+                  :label="t('register.email')"
                   type="email"
                   outlined
                   dense
                   :rules="[
-                    val => !!val || '请输入邮箱',
-                    val => /.+@.+\..+/.test(val) || '请输入有效的邮箱地址'
+                    val => !!val || t('register.rules.emailRequired'),
+                    val => /.+@.+\..+/.test(val) || t('register.rules.emailValid')
                   ]"
                   class="q-mb-md"
                 >
@@ -46,13 +49,13 @@
 
                 <q-input
                   v-model="form.password"
-                  label="密码"
+                  :label="t('register.password')"
                   :type="showPassword ? 'text' : 'password'"
                   outlined
                   dense
                   :rules="[
-                    val => !!val || '请输入密码',
-                    val => val.length >= 6 || '密码至少6个字符'
+                    val => !!val || t('register.rules.passwordRequired'),
+                    val => val.length >= 6 || t('register.rules.passwordLength')
                   ]"
                   class="q-mb-md"
                 >
@@ -70,13 +73,13 @@
 
                 <q-input
                   v-model="form.confirmPassword"
-                  label="确认密码"
+                  :label="t('register.confirmPassword')"
                   :type="showPassword ? 'text' : 'password'"
                   outlined
                   dense
                   :rules="[
-                    val => !!val || '请确认密码',
-                    val => val === form.password || '两次密码输入不一致'
+                    val => !!val || t('register.rules.confirmRequired'),
+                    val => val === form.password || t('register.rules.confirmMatch')
                   ]"
                   class="q-mb-md"
                 >
@@ -87,7 +90,7 @@
 
                 <q-input
                   v-model="form.display_name"
-                  label="显示名称（可选）"
+                  :label="t('register.displayName')"
                   outlined
                   dense
                   class="q-mb-md"
@@ -101,7 +104,7 @@
                 <div id="turnstile-widget" class="q-mb-md"></div>
 
                 <q-btn
-                  label="注册"
+                  :label="t('register.submit')"
                   type="submit"
                   color="primary"
                   class="full-width q-mb-md"
@@ -115,7 +118,7 @@
 
             <q-card-section class="text-center q-pt-md">
               <div class="text-caption text-grey-6">
-                已有账号？<a href="/login" class="text-primary">立即登录</a>
+                {{ t('register.haveAccount') }}<a href="/login" class="text-primary">{{ t('register.goLogin') }}</a>
               </div>
             </q-card-section>
           </q-card>
@@ -137,9 +140,12 @@ import { ref, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { api } from '../api'
 import { useQuasar } from 'quasar'
+import { useI18n } from 'vue-i18n'
+import LanguageSwitcher from '../components/LanguageSwitcher.vue'
 
 const router = useRouter()
 const $q = useQuasar()
+const { t } = useI18n()
 
 const form = ref({
   username: '',
@@ -213,7 +219,7 @@ const handleRegister = async () => {
     
     $q.notify({
       type: 'positive',
-      message: '注册成功！请检查邮箱并完成验证后再登录。'
+      message: t('register.success')
     })
 
     router.push({
@@ -228,7 +234,7 @@ const handleRegister = async () => {
     } else if (detail?.msg) {
       error.value = detail.msg
     } else {
-      error.value = '注册失败，请稍后重试'
+      error.value = t('register.failed')
     }
   } finally {
     loading.value = false
@@ -243,5 +249,11 @@ const handleRegister = async () => {
 
 .register-card {
   box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+}
+
+.lang-switcher {
+  position: absolute;
+  top: 16px;
+  right: 16px;
 }
 </style>

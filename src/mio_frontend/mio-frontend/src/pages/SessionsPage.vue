@@ -302,7 +302,12 @@ const handleCreateSession = async () => {
     const displayName = newSessionDisplayName.value.trim() || undefined
     const handle = newSessionHandle.value.trim() || undefined
     
-    const newSessionId = await createSession(persona, title, displayName, handle)
+    const newSessionId = await createSession({
+      user_persona: persona,
+      title,
+      user_display_name: displayName,
+      user_handle: handle
+    })
     showCreateDialog.value = false
     router.push(`/chat/${newSessionId}`)
   } catch (e) {

@@ -24,6 +24,10 @@ export default defineConfig({
         changeOrigin: true,
         ws: true,
       },
+      '/persona-avatars': {
+        target: 'http://localhost:8000',
+        changeOrigin: true,
+      },
     },
   },
 })

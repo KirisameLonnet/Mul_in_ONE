@@ -5,8 +5,10 @@ from __future__ import annotations
 import logging
 import os
 from logging.handlers import RotatingFileHandler
+from pathlib import Path
 
 from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
 
 from mul_in_one_nemo.auth.routes import router as auth_router
 from mul_in_one_nemo.service.routers import personas, sessions, debug, admin
@@ -78,5 +80,9 @@ def create_app() -> FastAPI:
     app.include_router(personas.router, prefix="/api/personas")
     app.include_router(admin.router, prefix="/api")
     app.include_router(debug.router, prefix="/api")
+
+    avatar_dir = Path(os.getenv("PERSONA_AVATAR_DIR", Path.cwd() / "configs" / "persona_avatars"))
+    avatar_dir.mkdir(parents=True, exist_ok=True)
+    app.mount("/persona-avatars", StaticFiles(directory=avatar_dir), name="persona-avatars")
 
     return app

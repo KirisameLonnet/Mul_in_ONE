@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime
+import os
+from pathlib import Path
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Response, UploadFile, status
 from fastapi.responses import StreamingResponse
 from pydantic import AnyHttpUrl, BaseModel, Field
 import json
@@ -18,6 +20,11 @@ from mul_in_one_nemo.service.repositories import PersonaDataRepository
 
 router = APIRouter(tags=["personas"])
 logger = logging.getLogger(__name__)
+
+AVATAR_UPLOAD_DIR = Path(os.getenv("PERSONA_AVATAR_DIR", Path.cwd() / "configs" / "persona_avatars"))
+AVATAR_UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+ALLOWED_AVATAR_TYPES = {"image/png", "image/jpeg", "image/webp"}
+MAX_AVATAR_BYTES = 2 * 1024 * 1024  # 2MB
 
 
 class APIProfileCreate(BaseModel):
@@ -89,6 +96,7 @@ class PersonaCreate(BaseModel):
     api_profile_id: int | None = Field(default=None, ge=1)
     is_default: bool = False
     background: str | None = Field(default=None, description="Background story or biography for RAG")
+    avatar_path: str | None = Field(default=None, max_length=512, description="头像文件访问路径或 URL")
 
 
 class PersonaResponse(BaseModel):
@@ -108,6 +116,7 @@ class PersonaResponse(BaseModel):
     api_model: str | None = None
     api_base_url: AnyHttpUrl | None = None
     temperature: float | None = None
+    avatar_path: str | None = None
 
     @classmethod
     def from_record(cls, record: PersonaRecord) -> "PersonaResponse":
@@ -128,6 +137,7 @@ class PersonaResponse(BaseModel):
             api_model=record.api_model,
             api_base_url=record.api_base_url,
             temperature=record.temperature,
+            avatar_path=record.avatar_path,
         )
 
 
@@ -142,6 +152,7 @@ class PersonaUpdate(BaseModel):
     api_profile_id: int | None = Field(default=None, ge=1)
     is_default: bool | None = None
     background: str | None = Field(default=None, description="Background story or biography for RAG")
+    avatar_path: str | None = Field(default=None, max_length=512, description="头像文件访问路径或 URL")
 
 
 class PersonaIngestRequest(BaseModel):
@@ -293,6 +304,7 @@ async def create_persona(
             api_profile_id=payload.api_profile_id,
             is_default=payload.is_default,
             background=payload.background,
+            avatar_path=payload.avatar_path,
         )
         
         # 自动摄取 background 到 RAG
@@ -363,6 +375,51 @@ async def update_persona(
                     )
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    return PersonaResponse.from_record(record)
+
+
+@router.post("/personas/{persona_id}/avatar", response_model=PersonaResponse)
+async def upload_persona_avatar(
+    persona_id: int,
+    file: UploadFile = File(..., description="头像图片文件"),
+    username: str = Query(..., description="User identifier"),
+    repository: PersonaDataRepository = Depends(get_persona_repository),
+) -> PersonaResponse:
+    """Upload and attach an avatar image to a Persona."""
+    if file.content_type not in ALLOWED_AVATAR_TYPES:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="仅支持 PNG、JPG、WEBP 格式的头像",
+        )
+
+    content = await file.read()
+    if len(content) > MAX_AVATAR_BYTES:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="头像文件过大，最大 2MB",
+        )
+
+    suffix = Path(file.filename or "").suffix.lower() or ".png"
+    safe_name = f"{username}_persona_{persona_id}{suffix}"
+    file_path = AVATAR_UPLOAD_DIR / safe_name
+    try:
+        file_path.write_bytes(content)
+    except OSError as exc:  # pragma: no cover - IO failures bubble up
+        logger.exception("Failed to save avatar to %s", file_path)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"无法保存头像文件: {exc}",
+        ) from exc
+
+    try:
+        record = await repository.update_persona(
+            username,
+            persona_id,
+            avatar_path=f"/persona-avatars/{safe_name}",
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+
     return PersonaResponse.from_record(record)
 
 
@@ -623,6 +680,86 @@ class APIHealthResponse(BaseModel):
     detail: str | None = None
 
 
+def _truncate_detail(text: str | None, limit: int = 500) -> str:
+    if not text:
+        return ""
+    return text[:limit]
+
+
+def _extract_error_detail(payload: dict | None, fallback_text: str | None = None) -> str:
+    """Derive a readable error string from provider response."""
+    if isinstance(payload, dict):
+        if "error" in payload:
+            err = payload.get("error")
+            if isinstance(err, dict):
+                return _truncate_detail(err.get("message") or err.get("code") or str(err))
+            return _truncate_detail(str(err))
+        if "message" in payload:
+            return _truncate_detail(str(payload.get("message")))
+    return _truncate_detail(fallback_text or "Provider error")
+
+
+def _evaluate_provider_response(
+    status_code: int | None,
+    text_body: str | None,
+    json_body: dict | None,
+    expect: str,
+) -> APIHealthResponse:
+    """Evaluate provider response and return strict health status."""
+    provider_status = status_code
+    if status_code is None:
+        return APIHealthResponse(status="FAILED", provider_status=None, detail="No status code from provider")
+
+    if not (200 <= status_code < 300):
+        detail = _extract_error_detail(json_body, text_body)
+        return APIHealthResponse(status="FAILED", provider_status=provider_status, detail=detail)
+
+    if not isinstance(json_body, dict):
+        return APIHealthResponse(
+            status="FAILED",
+            provider_status=provider_status,
+            detail="Non-JSON response from provider",
+        )
+
+    # Some providers return 200 + error payload; catch it explicitly
+    if "error" in json_body:
+        detail = _extract_error_detail(json_body, text_body)
+        return APIHealthResponse(status="FAILED", provider_status=provider_status, detail=detail)
+
+    if expect == "chat":
+        choices = json_body.get("choices")
+        if not choices or not isinstance(choices, list):
+            return APIHealthResponse(
+                status="FAILED",
+                provider_status=provider_status,
+                detail="Response missing choices array",
+            )
+        return APIHealthResponse(status="OK", provider_status=provider_status)
+
+    if expect == "embedding":
+        data = json_body.get("data")
+        if not data or not isinstance(data, list):
+            return APIHealthResponse(
+                status="FAILED",
+                provider_status=provider_status,
+                detail="Response missing embedding data array",
+            )
+        first = data[0] if data else None
+        if not isinstance(first, dict) or "embedding" not in first:
+            return APIHealthResponse(
+                status="FAILED",
+                provider_status=provider_status,
+                detail="Embedding response missing embedding vector",
+            )
+        return APIHealthResponse(status="OK", provider_status=provider_status)
+
+    return APIHealthResponse(
+        status="FAILED",
+        provider_status=provider_status,
+        detail=f"Unsupported health check mode '{expect}'",
+    )
+
+
 @router.get("/api-profiles/{profile_id}/health", response_model=APIHealthResponse)
 async def healthcheck_api_profile(
     profile_id: int,
@@ -631,7 +768,7 @@ async def healthcheck_api_profile(
 ) -> APIHealthResponse:
     """Perform a minimal health check against the configured third-party API.
 
-    Tries common OpenAI-compatible endpoints. Does NOT expose the API key.
+    Calls the real model endpoint with a lightweight request and validates the response payload.
     """
     record = await repository.get_api_profile_with_key(username, profile_id)
     if record is None:
@@ -640,77 +777,75 @@ async def healthcheck_api_profile(
     base_url = str(record["base_url"]).rstrip("/")
     api_key = record.get("api_key") or None
     model = record.get("model") or ""
+    is_embedding = bool(record.get("is_embedding_model"))
+    mode = "embedding" if is_embedding else "chat"
 
-    # Smart path detection: if base_url already ends with /v1, don't add it again
+    if not base_url:
+        return APIHealthResponse(status="FAILED", provider_status=None, detail="Base URL not configured")
+    if not model:
+        return APIHealthResponse(status="FAILED", provider_status=None, detail="Model not configured")
+
     base_has_v1 = base_url.endswith("/v1")
-    
-    candidates: list[dict] = []
-    # GET /models (or /v1/models if base doesn't have /v1)
-    models_path = "/models" if base_has_v1 else "/v1/models"
-    candidates.append({
-        "method": "GET",
-        "url": f"{base_url}{models_path}",
-        "headers": {"Authorization": f"Bearer {api_key}"} if api_key else {},
-        "json": None,
-    })
-    # If model provided, try embeddings
-    if model:
-        embed_path = "/embeddings" if base_has_v1 else "/v1/embeddings"
-        candidates.append({
-            "method": "POST",
-            "url": f"{base_url}{embed_path}",
-            "headers": {
-                "Content-Type": "application/json",
-                **({"Authorization": f"Bearer {api_key}"} if api_key else {}),
-            },
-            "json": {"model": model, "input": "ping"},
-        })
-    # fallback: GET base
-    candidates.append({
-        "method": "GET",
-        "url": base_url,
-        "headers": {"Authorization": f"Bearer {api_key}"} if api_key else {},
-        "json": None,
-    })
+    path = "/embeddings" if is_embedding else "/chat/completions"
+    path = path if base_has_v1 else f"/v1{path}"
+    target_url = f"{base_url}{path}"
+
+    headers = {
+        "Content-Type": "application/json",
+        **({"Authorization": f"Bearer {api_key}"} if api_key else {}),
+    }
+    payload = (
+        {"model": model, "input": "healthcheck"}
+        if is_embedding
+        else {
+            "model": model,
+            "messages": [{"role": "user", "content": "healthcheck"}],
+            "max_tokens": 1,
+            "stream": False,
+        }
+    )
 
     timeout_s = 8.0
+    last_detail: str | None = None
 
     # Prefer httpx; fallback to urllib
     try:
         import httpx  # type: ignore
         async with httpx.AsyncClient(timeout=timeout_s) as client:
-            for req in candidates:
-                try:
-                    resp = await client.request(
-                        req["method"],
-                        req["url"],
-                        headers=req["headers"],
-                        json=req["json"],
-                    )  # type: ignore[arg-type]
-                    if 200 <= resp.status_code < 300:
-                        return APIHealthResponse(status="OK", provider_status=resp.status_code)
-                    last_detail = f"HTTP {resp.status_code}: {resp.text[:500]}"
-                except Exception as exc:  # pragma: no cover
-                    last_detail = str(exc)
-        return APIHealthResponse(status="FAILED", provider_status=None, detail=last_detail)
-    except Exception:  # ImportError or runtime issues
+            resp = await client.post(target_url, headers=headers, json=payload)
+        json_body = None
+        try:
+            parsed = resp.json()
+            if isinstance(parsed, dict):
+                json_body = parsed
+        except Exception:
+            json_body = None
+        return _evaluate_provider_response(resp.status_code, resp.text, json_body, mode)
+    except Exception as exc:  # pragma: no cover
+        last_detail = str(exc)
+
+    try:
         import urllib.request
         import json as pyjson
-        for req in candidates:
+
+        data_bytes = pyjson.dumps(payload).encode("utf-8")
+        request = urllib.request.Request(target_url, data=data_bytes, method="POST")  # type: ignore[arg-type]
+        for k, v in headers.items():
+            request.add_header(k, v)
+        with urllib.request.urlopen(request, timeout=timeout_s) as resp:
+            code = getattr(resp, "status", None) or getattr(resp, "getcode", lambda: None)()
+            body_bytes = resp.read()
+            text_body = body_bytes.decode("utf-8", errors="ignore")
+            json_body = None
             try:
-                data = None
-                if req["json"] is not None:
-                    data = pyjson.dumps(req["json"]).encode("utf-8")
-                request = urllib.request.Request(req["url"], data=data, method=req["method"])  # type: ignore[arg-type]
-                for k, v in (req["headers"] or {}).items():
-                    request.add_header(k, v)
-                with urllib.request.urlopen(request, timeout=timeout_s) as resp:
-                    code = getattr(resp, "status", 200)
-                    if 200 <= code < 300:
-                        return APIHealthResponse(status="OK", provider_status=code)
-                    last_detail = f"HTTP {code}"
-            except Exception as exc:  # pragma: no cover
-                last_detail = str(exc)
-        return APIHealthResponse(status="FAILED", provider_status=None, detail=last_detail)
+                parsed = pyjson.loads(body_bytes)
+                if isinstance(parsed, dict):
+                    json_body = parsed
+            except Exception:
+                json_body = None
+            return _evaluate_provider_response(code, text_body, json_body, mode)
+    except Exception as exc:  # pragma: no cover
+        last_detail = str(exc) if last_detail is None else last_detail
 
-
+    fallback_detail = last_detail or "Health check failed"
+    return APIHealthResponse(status="FAILED", provider_status=None, detail=_truncate_detail(fallback_detail))

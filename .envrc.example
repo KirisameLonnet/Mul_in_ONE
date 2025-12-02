@@ -75,3 +75,6 @@ export MUL_IN_ONE_MEMORY_WINDOW="8"
 
 # Default temperature for model responses (creativity vs. determinism)
 export MUL_IN_ONE_TEMPERATURE="0.4"
+
+# Avatar Env dir
+export PERSONA_AVATAR_DIR=.postgresql/persona_avatars

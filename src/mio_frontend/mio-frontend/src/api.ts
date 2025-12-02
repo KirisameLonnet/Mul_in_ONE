@@ -230,6 +230,7 @@ export interface Persona {
   max_agents_per_turn: number;
   api_profile_id?: number | null;
   is_default: boolean;
+  avatar_path?: string | null;
 }
 
 export interface CreatePersonaPayload {
@@ -244,6 +245,7 @@ export interface CreatePersonaPayload {
   max_agents_per_turn?: number;
   api_profile_id?: number | null;
   is_default?: boolean;
+  avatar_path?: string | null;
 }
 
 export interface UpdatePersonaPayload {
@@ -258,11 +260,11 @@ export interface UpdatePersonaPayload {
   max_agents_per_turn?: number;
   api_profile_id?: number | null;
   is_default?: boolean;
+  avatar_path?: string | null;
 }
 
 export interface CreateSessionPayload {
-  username: string;
-  persona_ids: number[];
+  persona_ids?: number[];
   user_persona?: string;
   title?: string;
   user_display_name?: string;
@@ -306,9 +308,20 @@ export const getSessionMessages = async (sessionId: string, username: string): P
 // Alias for getSessionMessages (for backward compatibility)
 export const getMessages = getSessionMessages;
 
-export const createSession = async (payload: CreateSessionPayload): Promise<Session> => {
-  const response = await api.post<Session>('/sessions', payload);
-  return response.data;
+export const createSession = async (payload: CreateSessionPayload = {}): Promise<string> => {
+  const params: Record<string, unknown> = {
+    user_persona: payload.user_persona,
+    title: payload.title,
+    user_display_name: payload.user_display_name,
+    user_handle: payload.user_handle,
+  };
+
+  if (payload.persona_ids && payload.persona_ids.length > 0) {
+    params.initial_persona_ids = payload.persona_ids;
+  }
+
+  const response = await api.post<{ session_id: string }>('/sessions', null, { params });
+  return response.data.session_id;
 };
 
 export const updateSession = async (sessionId: string, username: string, payload: UpdateSessionPayload): Promise<Session> => {
@@ -338,10 +351,19 @@ export const deleteSessions = async (sessionIds: string[]): Promise<void> => {
   await Promise.all(sessionIds.map(id => api.delete(`/sessions/${id}`)));
 };
 
-export const sendMessage = async (sessionId: string, username: string, userMessage: UserMessage): Promise<void> => {
-  await api.post(`/sessions/${sessionId}/messages`, userMessage, {
-    params: { username },
-  });
+export const sendMessage = async (
+  sessionId: string,
+  content: string,
+  targetPersonas?: string[]
+): Promise<void> => {
+  const payload: UserMessage = {
+    content,
+    target_personas: targetPersonas && targetPersonas.length > 0 ? targetPersonas : undefined,
+  }
+
+  await api.post(`/sessions/${sessionId}/messages`, payload, {
+    params: { username: authState.username },
+  })
 };
 
 export const stopSession = async (sessionId: string, username: string): Promise<void> => {
@@ -392,6 +414,16 @@ export const updatePersona = async (persona_id: number, payload: UpdatePersonaPa
   const { username, ...body } = payload;
   const response = await api.patch<Persona>(`/personas/personas/${persona_id}`, body, {
     params: { username }
+  });
+  return response.data;
+};
+
+export const uploadPersonaAvatar = async (persona_id: number, file: File, username: string): Promise<Persona> => {
+  const formData = new FormData();
+  formData.append('file', file);
+  const response = await api.post<Persona>(`/personas/personas/${persona_id}/avatar`, formData, {
+    params: { username },
+    headers: { 'Content-Type': 'multipart/form-data' }
   });
   return response.data;
 };

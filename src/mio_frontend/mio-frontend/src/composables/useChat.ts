@@ -13,7 +13,7 @@ export function useChat() {
   const initSession = async () => {
     loading.value = true;
     try {
-      const sid = await createSession(tenantId.value, userId.value);
+      const sid = await createSession();
       sessionId.value = sid;
       await loadHistory(sid);
       connectWebSocket(sid);

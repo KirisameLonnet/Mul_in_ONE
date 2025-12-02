@@ -755,6 +755,8 @@ class SQLAlchemyPersonaRepository(PersonaDataRepository, BaseSQLAlchemyRepositor
                 "model": profile.model,
                 "temperature": profile.temperature,
                 "api_key": self._decrypt_api_key(profile.api_key_cipher),
+                "is_embedding_model": getattr(profile, "is_embedding_model", False),
+                "embedding_dim": getattr(profile, "embedding_dim", None),
             }
 
     async def update_api_profile(

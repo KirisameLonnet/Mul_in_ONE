@@ -66,22 +66,33 @@
     </q-drawer>
 
     <q-page-container>
+      <div class="q-pa-md" v-if="needsVerification">
+        <q-banner class="bg-warning text-black" rounded dense>
+          <div>
+            邮箱未验证：请前往邮箱点击验证链接后再继续使用写操作。可在 Account Settings 页面重新发送邮件。
+          </div>
+          <template #action>
+            <q-btn flat color="black" label="去验证" @click="goToVerify" />
+          </template>
+        </q-banner>
+      </div>
       <router-view />
     </q-page-container>
   </q-layout>
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useQuasar } from 'quasar'
-import { authState, logout } from '../api'
+import { authState, logout, EMAIL_VERIFICATION_EVENT } from '../api'
 
 const leftDrawerOpen = ref(false)
 const router = useRouter()
 const $q = useQuasar()
 
 const username = computed(() => authState.username)
+const needsVerification = computed(() => authState.isLoggedIn && !authState.isVerified)
 
 function toggleLeftDrawer () {
   leftDrawerOpen.value = !leftDrawerOpen.value
@@ -95,4 +106,21 @@ function handleLogout() {
   logout()
   router.push('/login')
 }
+
+function goToVerify() {
+  router.push({ path: '/verify-email', query: { email: authState.email || undefined } })
+}
+
+const handleVerificationEvent = () => {
+  $q.notify({ type: 'warning', message: '请先完成邮箱验证后再执行此操作' })
+  goToVerify()
+}
+
+onMounted(() => {
+  window.addEventListener(EMAIL_VERIFICATION_EVENT, handleVerificationEvent)
+})
+
+onUnmounted(() => {
+  window.removeEventListener(EMAIL_VERIFICATION_EVENT, handleVerificationEvent)
+})
 </script>

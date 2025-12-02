@@ -135,7 +135,7 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { api, authLogin, login } from '../api'
+import { api } from '../api'
 import { useQuasar } from 'quasar'
 
 const router = useRouter()
@@ -213,18 +213,13 @@ const handleRegister = async () => {
     
     $q.notify({
       type: 'positive',
-      message: '注册成功！请检查邮箱完成验证。'
+      message: '注册成功！请检查邮箱并完成验证后再登录。'
     })
-    
-    // 自动登录
-    const loginResponse = await authLogin({
-      username: form.value.email,
-      password: form.value.password
+
+    router.push({
+      path: '/verify-email',
+      query: { email: form.value.email }
     })
-    
-    login(form.value.username, loginResponse.access_token)
-    
-    router.push('/')
   } catch (err: any) {
     console.error('注册失败:', err)
     const detail = err.response?.data?.detail

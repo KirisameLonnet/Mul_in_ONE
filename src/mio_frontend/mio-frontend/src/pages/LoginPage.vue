@@ -100,7 +100,7 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { authLogin, login, getCurrentUser } from '../api'
+import { authLogin, login, getCurrentUser, setVerificationStatus } from '../api'
 import { useQuasar } from 'quasar'
 
 const router = useRouter()
@@ -130,12 +130,13 @@ const handleLogin = async () => {
     
     // 先保存 token（临时用 email 作为 username）
     login(email.value, response.access_token)
+    setVerificationStatus(false)
     
     // 获取用户信息
     const userInfo = await getCurrentUser()
     
     // 更新为正确的 username
-    login(userInfo.username, response.access_token)
+    login(userInfo.username, response.access_token, { email: userInfo.email, isVerified: userInfo.is_verified })
     
     $q.notify({
       type: 'positive',

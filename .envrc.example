@@ -35,11 +35,11 @@ export FRONTEND_URL="http://localhost:3000"
 # 如果不配置，邮箱验证功能将被禁用（但不影响注册）
 # 常见配置示例：
 
-# Gmail (需要启用两步验证并生成应用专用密码)
+# Gmail 需要开启两步验证+App专用密码
 # export SMTP_HOST="smtp.gmail.com"
 # export SMTP_PORT="587"
 # export SMTP_USER="your-email@gmail.com"
-# export SMTP_PASSWORD="your-16-digit-app-password"
+# export SMTP_PASSWORD="your-password"
 # export SMTP_FROM_EMAIL="your-email@gmail.com"
 # export SMTP_FROM_NAME="Mul-in-ONE"
 

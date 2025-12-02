@@ -21,14 +21,12 @@ class UserManager(IntegerIDMixin, BaseUserManager[User, int]):
     async def on_after_register(self, user: User, request: Optional[Request] = None):
         """用户注册后的回调."""
         print(f"User {user.id} ({user.username}) has registered.")
-        # 如果配置了邮件服务，发送验证邮件
+        # 触发邮箱验证流程（token 会在 on_after_request_verify 中发送）
         if email_service.enabled and not user.is_verified:
             try:
-                # 生成验证 token
-                token = await self.request_verify(user, request)
-                email_service.send_verification_email(user.email, token, user.username)
+                await self.request_verify(user, request)
             except Exception as e:
-                print(f"Failed to send verification email: {e}")
+                print(f"Failed to initiate verification email: {e}")
 
     async def on_after_forgot_password(
         self, user: User, token: str, request: Optional[Request] = None

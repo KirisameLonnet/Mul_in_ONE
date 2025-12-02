@@ -1,27 +1,102 @@
 import axios from 'axios';
 import { reactive } from 'vue';
 
+const STORAGE_KEYS = {
+  username: 'mio_username',
+  token: 'access_token',
+  email: 'mio_email',
+  verified: 'mio_is_verified'
+} as const;
+
+const WRITE_METHODS = new Set(['post', 'put', 'patch', 'delete']);
+const VERIFICATION_WHITELIST = [
+  '/auth/login',
+  '/auth/logout',
+  '/auth/register',
+  '/auth/register-with-captcha',
+  '/auth/verify',
+  '/auth/request-verify-token',
+  '/auth/forgot-password',
+  '/auth/reset-password',
+  '/auth/account'
+];
+
+export const EMAIL_VERIFICATION_EVENT = 'mio:email-verification-required';
+
+export class EmailVerificationRequiredError extends Error {
+  constructor(message = '需要先完成邮箱验证后才能进行此操作') {
+    super(message);
+    this.name = 'EmailVerificationRequiredError';
+  }
+}
+
+const setStoredValue = (key: string, value: string | null) => {
+  if (value === null) {
+    localStorage.removeItem(key);
+  } else {
+    localStorage.setItem(key, value);
+  }
+};
+
+const readStoredValue = (key: string) => localStorage.getItem(key) || '';
+
 // --- Auth State ---
 export const authState = reactive({
-  username: localStorage.getItem('mio_username') || '',
-  isLoggedIn: !!localStorage.getItem('access_token'),
-  token: localStorage.getItem('access_token') || '',
+  username: localStorage.getItem(STORAGE_KEYS.username) || '',
+  email: localStorage.getItem(STORAGE_KEYS.email) || '',
+  isLoggedIn: !!localStorage.getItem(STORAGE_KEYS.token),
+  token: localStorage.getItem(STORAGE_KEYS.token) || '',
+  isVerified: localStorage.getItem(STORAGE_KEYS.verified) === 'true'
 });
 
-export const login = (username: string, token: string) => {
+export const refreshAuthStateFromStorage = () => {
+  authState.username = localStorage.getItem(STORAGE_KEYS.username) || '';
+  authState.email = localStorage.getItem(STORAGE_KEYS.email) || '';
+  authState.token = localStorage.getItem(STORAGE_KEYS.token) || '';
+  authState.isLoggedIn = !!authState.token;
+  authState.isVerified = localStorage.getItem(STORAGE_KEYS.verified) === 'true';
+};
+
+const setAuthEmail = (email: string) => {
+  authState.email = email;
+  setStoredValue(STORAGE_KEYS.email, email || null);
+};
+
+export const setVerificationStatus = (isVerified: boolean) => {
+  authState.isVerified = isVerified;
+  setStoredValue(STORAGE_KEYS.verified, isVerified ? 'true' : 'false');
+};
+
+export const login = (
+  username: string,
+  token: string,
+  profile?: { email?: string; isVerified?: boolean }
+) => {
   authState.username = username;
   authState.token = token;
   authState.isLoggedIn = true;
-  localStorage.setItem('mio_username', username);
-  localStorage.setItem('access_token', token);
+  setStoredValue(STORAGE_KEYS.username, username);
+  setStoredValue(STORAGE_KEYS.token, token);
+  if (profile?.email !== undefined) {
+    setAuthEmail(profile.email);
+  } else if (username) {
+    setAuthEmail(username);
+  }
+  if (typeof profile?.isVerified === 'boolean') {
+    setVerificationStatus(profile.isVerified);
+  } else {
+    setVerificationStatus(false);
+  }
 };
 
 export const logout = () => {
   authState.username = '';
   authState.token = '';
   authState.isLoggedIn = false;
-  localStorage.removeItem('mio_username');
-  localStorage.removeItem('access_token');
+  setStoredValue(STORAGE_KEYS.username, null);
+  setStoredValue(STORAGE_KEYS.token, null);
+  setAuthEmail('');
+  setVerificationStatus(false);
 };
 
 export const api = axios.create({
@@ -30,6 +105,21 @@ export const api = axios.create({
 
 // Interceptor to inject JWT token and username
 api.interceptors.request.use((config) => {
+  const method = (config.method || 'get').toLowerCase();
+  const url = config.url || '';
+
+  if (
+    authState.isLoggedIn &&
+    !authState.isVerified &&
+    WRITE_METHODS.has(method) &&
+    !VERIFICATION_WHITELIST.some((allowed) => url.startsWith(allowed))
+  ) {
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent(EMAIL_VERIFICATION_EVENT));
+    }
+    return Promise.reject(new EmailVerificationRequiredError());
+  }
+
   if (authState.isLoggedIn && authState.token) {
     // 添加 JWT Bearer token
     config.headers.Authorization = `Bearer ${authState.token}`;
@@ -315,6 +405,15 @@ export interface UserInfo {
   is_verified: boolean;
 }
 
+export const syncAuthUserProfile = (user: UserInfo) => {
+  if (user.username && user.username !== authState.username) {
+    authState.username = user.username;
+    setStoredValue(STORAGE_KEYS.username, user.username);
+  }
+  setAuthEmail(user.email || '');
+  setVerificationStatus(user.is_verified);
+};
+
 export interface AuthResponse {
   access_token: string;
   token_type: string;
@@ -338,6 +437,7 @@ export const authRegister = async (payload: RegisterPayload): Promise<UserInfo> 
 
 export const getCurrentUser = async (): Promise<UserInfo> => {
   const response = await api.get<UserInfo>('/users/me');
+  syncAuthUserProfile(response.data);
   return response.data;
 };
 
@@ -349,3 +449,16 @@ export const authLogout = async (): Promise<void> => {
 export const deleteAccount = async (): Promise<void> => {
   await api.delete('/auth/account');
 };
+
+export const requestVerificationEmail = async (email: string): Promise<void> => {
+  await api.post('/auth/request-verify-token', { email });
+};
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('storage', (event) => {
+    if (!event.key) return;
+    if (Object.values(STORAGE_KEYS).includes(event.key)) {
+      refreshAuthStateFromStorage();
+    }
+  });
+}

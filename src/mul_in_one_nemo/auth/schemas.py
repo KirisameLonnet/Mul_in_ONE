@@ -1,5 +1,7 @@
 """Pydantic schemas for user authentication."""
 
+from datetime import datetime
+
 from fastapi_users import schemas
 
 
@@ -8,6 +10,7 @@ class UserRead(schemas.BaseUser[int]):
     username: str
     display_name: str | None = None
     role: str = "member"
+    created_at: datetime
 
 
 class UserCreate(schemas.BaseUserCreate):

@@ -136,7 +136,12 @@ const handleLogin = async () => {
     const userInfo = await getCurrentUser()
     
     // 更新为正确的 username
-    login(userInfo.username, response.access_token, { email: userInfo.email, isVerified: userInfo.is_verified })
+    login(userInfo.username, response.access_token, {
+      email: userInfo.email,
+      isVerified: userInfo.is_verified,
+      role: userInfo.role,
+      isSuperuser: userInfo.is_superuser
+    })
     
     $q.notify({
       type: 'positive',
@@ -168,7 +173,12 @@ const handleOAuthCallback = async () => {
   if (token) {
     try {
       const userInfo = await getCurrentUser()
-      login(userInfo.username, token)
+      login(userInfo.username, token, {
+        email: userInfo.email,
+        isVerified: userInfo.is_verified,
+        role: userInfo.role,
+        isSuperuser: userInfo.is_superuser
+      })
       $q.notify({
         type: 'positive',
         message: `欢迎，${userInfo.display_name || userInfo.username}！`

@@ -10,6 +10,7 @@ import DebugPage from '../pages/DebugPage.vue'
 import ChatConversationPage from '../pages/ChatConversationPage.vue'
 import AccountSettingsPage from '../pages/AccountSettingsPage.vue'
 import { authState } from '../api'
+import AdminUsersPage from '../pages/AdminUsersPage.vue'
 
 const routes = [
   {
@@ -38,7 +39,8 @@ const routes = [
       { path: 'profiles', component: ApiProfilesPage },
       { path: 'debug', component: DebugPage },
       { path: 'account', component: AccountSettingsPage },
-      { path: 'chat/:id', component: ChatConversationPage }
+      { path: 'chat/:id', component: ChatConversationPage },
+      { path: 'admin/users', component: AdminUsersPage, meta: { requiresAdmin: true } }
     ]
   }
 ]
@@ -52,6 +54,8 @@ router.beforeEach((to, from, next) => {
   const isLoggedIn = authState.isLoggedIn
   const requiresAuth = to.matched.some(record => record.meta.requiresAuth)
   const isGuestPage = to.matched.some(record => record.meta.guest)
+  const requiresAdmin = to.matched.some(record => record.meta.requiresAdmin)
+  const isAdmin = authState.isSuperuser || authState.role === 'admin'
 
   if (requiresAuth && !isLoggedIn) {
     // 需要登录但未登录，跳转登录页
@@ -62,6 +66,8 @@ router.beforeEach((to, from, next) => {
   } else if (isGuestPage && isLoggedIn) {
     // 已登录用户访问登录/注册页，跳转首页
     next('/')
+  } else if (requiresAdmin && !isAdmin) {
+    next('/sessions')
   } else {
     next()
   }

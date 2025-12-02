@@ -54,6 +54,15 @@
           </q-item-section>
         </q-item>
 
+        <q-item v-if="isAdmin" clickable v-ripple to="/admin/users">
+          <q-item-section avatar>
+            <q-icon name="security" />
+          </q-item-section>
+          <q-item-section>
+            Admin Users
+          </q-item-section>
+        </q-item>
+
         <q-item clickable v-ripple to="/debug">
           <q-item-section avatar>
             <q-icon name="bug_report" />
@@ -93,6 +102,7 @@ const $q = useQuasar()
 
 const username = computed(() => authState.username)
 const needsVerification = computed(() => authState.isLoggedIn && !authState.isVerified)
+const isAdmin = computed(() => authState.isSuperuser || authState.role === 'admin')
 
 function toggleLeftDrawer () {
   leftDrawerOpen.value = !leftDrawerOpen.value

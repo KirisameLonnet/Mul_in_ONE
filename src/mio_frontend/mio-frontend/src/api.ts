@@ -5,7 +5,9 @@ const STORAGE_KEYS = {
   username: 'mio_username',
   token: 'access_token',
   email: 'mio_email',
-  verified: 'mio_is_verified'
+  verified: 'mio_is_verified',
+  role: 'mio_role',
+  superuser: 'mio_is_superuser'
 } as const;
 
 const WRITE_METHODS = new Set(['post', 'put', 'patch', 'delete']);
@@ -46,7 +48,9 @@ export const authState = reactive({
   email: localStorage.getItem(STORAGE_KEYS.email) || '',
   isLoggedIn: !!localStorage.getItem(STORAGE_KEYS.token),
   token: localStorage.getItem(STORAGE_KEYS.token) || '',
-  isVerified: localStorage.getItem(STORAGE_KEYS.verified) === 'true'
+  isVerified: localStorage.getItem(STORAGE_KEYS.verified) === 'true',
+  role: localStorage.getItem(STORAGE_KEYS.role) || 'member',
+  isSuperuser: localStorage.getItem(STORAGE_KEYS.superuser) === 'true'
 });
 
 export const refreshAuthStateFromStorage = () => {
@@ -55,11 +59,24 @@ export const refreshAuthStateFromStorage = () => {
   authState.token = localStorage.getItem(STORAGE_KEYS.token) || '';
   authState.isLoggedIn = !!authState.token;
   authState.isVerified = localStorage.getItem(STORAGE_KEYS.verified) === 'true';
+  authState.role = localStorage.getItem(STORAGE_KEYS.role) || 'member';
+  authState.isSuperuser = localStorage.getItem(STORAGE_KEYS.superuser) === 'true';
 };
 
 const setAuthEmail = (email: string) => {
   authState.email = email;
   setStoredValue(STORAGE_KEYS.email, email || null);
+};
+
+const setRole = (role: string) => {
+  const normalized = role || 'member';
+  authState.role = normalized;
+  setStoredValue(STORAGE_KEYS.role, normalized);
+};
+
+const setSuperuser = (isSuperuser: boolean) => {
+  authState.isSuperuser = isSuperuser;
+  setStoredValue(STORAGE_KEYS.superuser, isSuperuser ? 'true' : 'false');
 };
 
 export const setVerificationStatus = (isVerified: boolean) => {
@@ -69,8 +86,8 @@ export const setVerificationStatus = (isVerified: boolean) => {
 
 export const login = (
   username: string,
-  token: string,
-  profile?: { email?: string; isVerified?: boolean }
+  token = '',
+  profile?: { email?: string; isVerified?: boolean; role?: string; isSuperuser?: boolean }
 ) => {
   authState.username = username;
   authState.token = token;
@@ -87,6 +104,8 @@ export const login = (
   } else {
     setVerificationStatus(false);
   }
+  setRole(profile?.role || 'member');
+  setSuperuser(!!profile?.isSuperuser);
 };
 
 export const logout = () => {
@@ -97,6 +116,8 @@ export const logout = () => {
   setStoredValue(STORAGE_KEYS.token, null);
   setAuthEmail('');
   setVerificationStatus(false);
+  setRole('member');
+  setSuperuser(false);
 };
 
 export const api = axios.create({
@@ -400,6 +421,8 @@ export interface UserInfo {
   email: string;
   username: string;
   display_name?: string;
+  role: string;
+  created_at: string;
   is_active: boolean;
   is_superuser: boolean;
   is_verified: boolean;
@@ -412,6 +435,8 @@ export const syncAuthUserProfile = (user: UserInfo) => {
   }
   setAuthEmail(user.email || '');
   setVerificationStatus(user.is_verified);
+  setRole(user.role || 'member');
+  setSuperuser(!!user.is_superuser);
 };
 
 export interface AuthResponse {
@@ -452,6 +477,24 @@ export const deleteAccount = async (): Promise<void> => {
 
 export const requestVerificationEmail = async (email: string): Promise<void> => {
   await api.post('/auth/request-verify-token', { email });
+};
+
+export type AdminUser = UserInfo;
+
+export const fetchAllUsers = async (): Promise<AdminUser[]> => {
+  const response = await api.get<AdminUser[]>('/admin/users');
+  return response.data;
+};
+
+export const deleteUserById = async (userId: number): Promise<void> => {
+  await api.delete(`/admin/users/${userId}`);
+};
+
+export const updateUserAdminStatus = async (userId: number, isAdmin: boolean): Promise<AdminUser> => {
+  const response = await api.patch<AdminUser>(`/admin/users/${userId}/admin`, {
+    is_admin: isAdmin
+  });
+  return response.data;
 };
 
 if (typeof window !== 'undefined') {

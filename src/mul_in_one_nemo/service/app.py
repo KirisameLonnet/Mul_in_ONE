@@ -9,7 +9,7 @@ from logging.handlers import RotatingFileHandler
 from fastapi import FastAPI
 
 from mul_in_one_nemo.auth.routes import router as auth_router
-from mul_in_one_nemo.service.routers import personas, sessions, debug
+from mul_in_one_nemo.service.routers import personas, sessions, debug, admin
 
 
 def create_app() -> FastAPI:
@@ -76,6 +76,7 @@ def create_app() -> FastAPI:
     app.include_router(auth_router, prefix="/api")
     app.include_router(sessions.router, prefix="/api")
     app.include_router(personas.router, prefix="/api/personas")
+    app.include_router(admin.router, prefix="/api")
     app.include_router(debug.router, prefix="/api")
 
     return app

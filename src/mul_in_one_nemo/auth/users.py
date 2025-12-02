@@ -39,5 +39,6 @@ fastapi_users = FastAPIUsers[User, int](
     [auth_backend],
 )
 
-# 获取当前活跃用户的依赖
+# 获取当前活跃用户或者超级管理员依赖
 current_active_user = fastapi_users.current_user(active=True)
+current_superuser = fastapi_users.current_user(active=True, superuser=True)

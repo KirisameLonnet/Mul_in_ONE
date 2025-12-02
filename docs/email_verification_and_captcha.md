@@ -21,6 +21,7 @@ export SMTP_FROM_NAME="Mul-in-ONE"             # 发件人名称（可选）
 ### 常见邮件服务提供商配置
 
 #### Gmail
+
 ```bash
 export SMTP_HOST="smtp.gmail.com"
 export SMTP_PORT="587"
@@ -29,11 +30,13 @@ export SMTP_PASSWORD="your-16-digit-app-password"  # 需要启用两步验证并
 ```
 
 **Gmail 设置步骤：**
+
 1. 启用两步验证：https://myaccount.google.com/security
 2. 生成应用专用密码：https://myaccount.google.com/apppasswords
 3. 使用生成的 16 位密码作为 `SMTP_PASSWORD`
 
 #### Outlook/Hotmail
+
 ```bash
 export SMTP_HOST="smtp-mail.outlook.com"
 export SMTP_PORT="587"
@@ -42,6 +45,7 @@ export SMTP_PASSWORD="your-password"
 ```
 
 #### QQ 邮箱
+
 ```bash
 export SMTP_HOST="smtp.qq.com"
 export SMTP_PORT="587"
@@ -50,6 +54,7 @@ export SMTP_PASSWORD="your-authorization-code"  # QQ 邮箱授权码，非登录
 ```
 
 **QQ 邮箱设置步骤：**
+
 1. 登录 QQ 邮箱网页版
 2. 设置 -> 账户 -> POP3/IMAP/SMTP/Exchange/CardDAV/CalDAV服务
 3. 开启"POP3/SMTP服务"或"IMAP/SMTP服务"
@@ -65,7 +70,7 @@ export SMTP_PASSWORD="your-authorization-code"  # QQ 邮箱授权码，非登录
 tail -f logs/backend.log
 ```
 
-## 2. Cloudflare Turnstile 配置
+## 2. Cloudflare Turnstile 配置 （未经测试）
 
 Cloudflare Turnstile 是一个免费的、注重隐私的验证码替代方案。
 
@@ -100,21 +105,25 @@ VITE_TURNSTILE_SITE_KEY=your-site-key-here
 在开发环境中，可以使用 Cloudflare 提供的测试密钥（总是通过验证）：
 
 **测试 Site Key（始终通过）：**
+
 ```
 1x00000000000000000000AA
 ```
 
 **测试 Secret Key：**
+
 ```
 1x0000000000000000000000000000000AA
 ```
 
 **测试 Site Key（始终失败）：**
+
 ```
 2x00000000000000000000AB
 ```
 
 **测试 Secret Key：**
+
 ```
 2x0000000000000000000000000000000AA
 ```
@@ -136,6 +145,7 @@ VITE_TURNSTILE_SITE_KEY=your-site-key-here
 4. 用户可以正常使用所有功能
 
 **API 端点：**
+
 - `POST /api/auth/register` - 注册（会触发邮件发送）
 - `POST /api/auth/verify` - 验证邮箱
 - `POST /api/auth/request-verify-token` - 重新发送验证邮件
@@ -151,15 +161,18 @@ VITE_TURNSTILE_SITE_KEY=your-site-key-here
 5. 验证通过后完成注册
 
 **API 端点：**
+
 - `POST /api/auth/register-with-captcha` - 带验证码的注册
 
 ## 4. 前端页面
 
 新增页面：
+
 - `/verify-email` - 邮箱验证页面（处理邮件中的验证链接）
 - `/reset-password` - 密码重置页面（可选，需要另外实现）
 
 更新页面：
+
 - `/register` - 注册页面（已集成 Turnstile）
 
 ## 5. 安全建议
@@ -175,6 +188,7 @@ VITE_TURNSTILE_SITE_KEY=your-site-key-here
 ### 邮件发送失败
 
 检查：
+
 1. SMTP 配置是否正确
 2. 是否启用了应用专用密码
 3. 防火墙是否允许 SMTP 端口
@@ -183,6 +197,7 @@ VITE_TURNSTILE_SITE_KEY=your-site-key-here
 ### Turnstile 验证失败
 
 检查：
+
 1. Site Key 和 Secret Key 是否匹配
 2. 域名是否在 Cloudflare Turnstile 站点配置中
 3. 网络连接是否正常
@@ -202,6 +217,7 @@ export VITE_TURNSTILE_SITE_KEY="1x00000000000000000000AA"
 ## 7. 依赖包
 
 后端需要安装：
+
 ```bash
 # 已包含在 pyproject.toml 中
 httpx  # 用于 Turnstile API 调用

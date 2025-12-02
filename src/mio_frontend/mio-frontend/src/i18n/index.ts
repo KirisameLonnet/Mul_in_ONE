@@ -92,7 +92,13 @@ export const messages = {
       },
       welcomeBack: 'Welcome back, {name}!',
       loginFailed: 'Login failed, please check your email and password',
-      oauthFailed: 'OAuth login failed'
+      oauthFailed: 'OAuth login failed',
+      alphaDialog: {
+        title: 'Heads up: alpha build',
+        message: 'MIO is currently in alpha. The demo database may be wiped at any time—avoid storing sensitive data. Source code: {repo}. If you like the project, please star it and report issues/bugs on GitHub.',
+        ok: 'Got it',
+        skip: 'Skip for now'
+      }
     },
     register: {
       title: 'Create Account',
@@ -525,7 +531,13 @@ export const messages = {
       },
       welcomeBack: '欢迎回来，{name}！',
       loginFailed: '登录失败，请检查邮箱和密码',
-      oauthFailed: 'OAuth 登录失败'
+      oauthFailed: 'OAuth 登录失败',
+      alphaDialog: {
+        title: '提示：Alpha 版本',
+        message: '当前为 Alpha 版本，演示数据库可能随时清空，请勿存放敏感数据。源代码：{repo}。如果觉得有用欢迎点 Star，有问题或 Bug 请到 GitHub Issue 反馈。',
+        ok: '知道了',
+        skip: '稍后再说'
+      }
     },
     register: {
       title: '创建账号',

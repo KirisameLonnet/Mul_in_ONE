@@ -123,6 +123,21 @@ const error = ref('')
 const giteeAvailable = ref(true)
 const githubAvailable = ref(true)
 
+const repoUrl = 'https://github.com/KirisameLonnet/Mul_in_ONE'
+
+const showAlphaNotice = (redirectPath: string) => {
+  const dialog = $q.dialog({
+    title: t('login.alphaDialog.title'),
+    message: t('login.alphaDialog.message', { repo: repoUrl }),
+    ok: t('login.alphaDialog.ok'),
+    cancel: t('login.alphaDialog.skip'),
+    persistent: true
+  })
+
+  dialog.onOk(() => router.push(redirectPath))
+  dialog.onCancel(() => router.push(redirectPath))
+}
+
 const handleLogin = async () => {
   loading.value = true
   error.value = ''
@@ -156,7 +171,7 @@ const handleLogin = async () => {
     
     // 跳转到目标页面或首页
     const redirect = route.query.redirect as string || '/'
-    router.push(redirect)
+    showAlphaNotice(redirect)
   } catch (err: any) {
     console.error('登录失败:', err)
     error.value = err.response?.data?.detail || t('login.loginFailed')
@@ -189,7 +204,7 @@ const handleOAuthCallback = async () => {
         type: 'positive',
         message: t('login.welcomeBack', { name: userInfo.display_name || userInfo.username })
       })
-      router.push('/')
+      showAlphaNotice('/')
     } catch (err) {
       error.value = t('login.oauthFailed')
     }

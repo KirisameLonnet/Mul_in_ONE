@@ -7,6 +7,10 @@
 
 **一个功能完整的多智能体对话系统,支持动态 Persona 管理、RAG 知识增强、实时流式对话和 Web 可视化界面。**
 
+
+demo已上线，欢迎前来帮我免费测试（
+ > mio.lonnet.uk[https://mio.lonnet.uk]
+
 本项目基于 NVIDIA NeMo Agent Toolkit 构建,提供了从命令行工具到 Web 应用的完整解决方案,让多个 AI Agent 能够像真人群聊一样进行自然、流畅的对话互动。系统采用“工具优先（NAT 函数调用）”设计,由 LLM 按需主动调用工具（如 WebSearch、RagQuery）,不再使用内联触发器或每轮预注入背景。
 
 ## ✨ 核心特性

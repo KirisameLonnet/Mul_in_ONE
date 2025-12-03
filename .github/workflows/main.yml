@@ -1,16 +1,13 @@
 name: Build Vue and Deploy to Branch
 
-# 觸發條件：當推送到 main 分支時觸發 (請根據你的主分支名稱修改，如 master)
 on:
   push:
     branches:
       - main
-    # 也可以加入 paths 過濾，只有修改了前端目錄下的文件才觸發構建
     paths:
       - 'src/mio_frontend/mio_frontend/**'
       - '.github/workflows/**'
 
-# 權限設置：必須允許寫入權限才能推送到分支
 permissions:
   contents: write
 
@@ -19,43 +16,35 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # 1. 檢出代碼
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # 2. 設置 Node.js 環境
+      # [檢查步驟] 這一步會在 log 中列出該目錄下的文件
+      # 如果 setup-node 還是報錯，請看這一步的輸出，確認檔名到底是 package.lock 還是 package-lock.json
+      - name: Verify Lock File Exists
+        run: |
+          ls -la src/mio_frontend/mio_frontend/
+
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20' # 建議使用 LTS 版本
+          node-version: '20'
           cache: 'npm'
-          # 指定 package-lock.json 的路徑以正確啟用緩存
+          # [嚴格寫死路徑]
+          # 注意：標準檔名是 "package-lock.json" (中間是橫線，結尾是 .json)
+          # 如果你的實際檔名是 "package.lock"，請手動修改下面這一行
           cache-dependency-path: src/mio_frontend/mio_frontend/package-lock.json
 
-      # 3. 安裝依賴並構建
-      # 使用 working-directory 確保命令在正確的子目錄下執行
       - name: Install and Build
         working-directory: src/mio_frontend/mio_frontend
         run: |
-          echo "Installing dependencies..."
           npm install
-          
-          echo "Building project..."
           npm run build
 
-      # 4. 將構建結果推送到另一個分支
       - name: Deploy to Branch
         uses: JamesIves/github-pages-deploy-action@v4
         with:
-          # 指定構建輸出的文件夾 (相對於根目錄的完整路徑)
-          # Vue 默認輸出在 dist，如果是 Vite 且修改過配置，請改為對應名稱
           folder: src/mio_frontend/mio_frontend/dist
-          
-          # 目標分支：構建好的代碼將會被推送到這個分支
           branch: build-artifacts
-          
-          # 是否清除目標分支上的舊文件 (通常設為 true 以保持與最新構建一致)
           clean: true
-          
-          # 提交訊息
           commit-message: "Deploy: Build from commit ${{ github.sha }}"

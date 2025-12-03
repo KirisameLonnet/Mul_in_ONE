@@ -20,10 +20,12 @@ src/mul_in_one_nemo.egg-info/requires.txt
 src/mul_in_one_nemo.egg-info/top_level.txt
 src/mul_in_one_nemo/auth/__init__.py
 src/mul_in_one_nemo/auth/db.py
+src/mul_in_one_nemo/auth/email.py
 src/mul_in_one_nemo/auth/manager.py
 src/mul_in_one_nemo/auth/oauth.py
 src/mul_in_one_nemo/auth/routes.py
 src/mul_in_one_nemo/auth/schemas.py
+src/mul_in_one_nemo/auth/turnstile.py
 src/mul_in_one_nemo/auth/users.py
 src/mul_in_one_nemo/db/__init__.py
 src/mul_in_one_nemo/db/models.py
@@ -31,6 +33,7 @@ src/mul_in_one_nemo/service/__init__.py
 src/mul_in_one_nemo/service/app.py
 src/mul_in_one_nemo/service/dependencies.py
 src/mul_in_one_nemo/service/interrupts.py
+src/mul_in_one_nemo/service/logging_control.py
 src/mul_in_one_nemo/service/models.py
 src/mul_in_one_nemo/service/rag_adapter.py
 src/mul_in_one_nemo/service/rag_context.py
@@ -39,11 +42,13 @@ src/mul_in_one_nemo/service/rag_service.py
 src/mul_in_one_nemo/service/repositories.py
 src/mul_in_one_nemo/service/runtime_adapter.py
 src/mul_in_one_nemo/service/session_service.py
+src/mul_in_one_nemo/service/routers/admin.py
 src/mul_in_one_nemo/service/routers/debug.py
 src/mul_in_one_nemo/service/routers/personas.py
 src/mul_in_one_nemo/service/routers/sessions.py
 src/mul_in_one_nemo/tools/rag_query_tool.py
 src/mul_in_one_nemo/tools/web_search_tool.py
+tests/test_admin_users_api.py
 tests/test_rag_service.py
 tests/test_rag_service_db_resolution.py
 tests/test_service_persona_repository.py

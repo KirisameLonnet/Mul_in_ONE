@@ -743,6 +743,13 @@ Dynamic: license-file
 - **API Profile 管理**: 统一管理各种 LLM API 配置(OpenAI、SiliconFlow、自定义等)
 - **Embedding 配置**: 独立的全局 embedding 模型配置面板
 - **实时 DEBUG 日志**: 查看后端日志,监控 Milvus 和数据库操作
+- **账户设置页面**: 查看账号属性、邮箱验证状态，并可执行危险操作（删除账号）
+
+### 🔐 用户认证与安全
+- **FastAPI-Users + JWT**: 提供登录、注册、邮箱验证、密码重置等完整认证流程
+- **邮箱验证**: 可选配置 SMTP 服务器，自动发送注册验证/忘记密码邮件
+- **Cloudflare Turnstile**: 可选启用人机验证，注册需携带 captcha token 才可通过
+- **账户自助注销**: 新的 Account Settings 页面和 `DELETE /api/auth/account` 端点支持用户删除全部数据
 
 ### 🔧 开发者友好
 - **RESTful API**: 完整的 FastAPI 后端,支持 Swagger 文档
@@ -870,7 +877,65 @@ source .venv/bin/activate  # Windows: .venv\Scripts\activate
 ./scripts/bootstrap_toolkit.sh
 ```
 
-#### 3. 配置数据库
+#### 3. 配置环境变量 ⚠️ **必须**
+
+复制环境变量模板并配置：
+
+```bash
+cp .envrc.example .envrc
+```
+
+编辑 `.envrc` 文件，**必须配置**以下项：
+
+```bash
+# 数据库连接
+export DATABASE_URL="postgresql+asyncpg://postgres:postgres@localhost:5432/mul_in_one"
+
+# JWT 认证密钥（生产环境必须修改！使用下面的命令生成随机密钥）
+export JWT_SECRET="your-secret-key-change-in-production"
+
+# 生成安全的随机密钥（推荐）
+# export JWT_SECRET="$(openssl rand -hex 32)"
+
+# Docker 和 Milvus 配置（Milvus 启动必需）
+export DOCKER_VOLUME_DIRECTORY="$(pwd)/external/NeMo-Agent-Toolkit/examples/deploy"
+export MILVUS_CONFIG_DIR="$(pwd)/configs"
+export MILVUS_MEM_LIMIT="6g"
+
+# OAuth 配置（可选，如需第三方登录则取消注释）
+# export GITEE_CLIENT_ID="your-gitee-client-id"
+# export GITEE_CLIENT_SECRET="your-gitee-client-secret"
+# export GITHUB_CLIENT_ID="your-github-client-id"
+# export GITHUB_CLIENT_SECRET="your-github-client-secret"
+
+# 其他配置见 .envrc.example 中的详细注释
+```
+
+加载环境变量：
+
+```bash
+direnv allow  # 如果使用 direnv（推荐）
+# 或者手动加载
+source .envrc
+```
+
+> 💡 **重要**: `DOCKER_VOLUME_DIRECTORY` 变量用于 Milvus Docker Compose 配置，指向 NeMo Toolkit 的 vendor volumes 根目录。如果不设置，Docker 会将路径解释为命名卷而非绑定挂载，导致 Milvus 无法正确读取配置文件。
+
+> ⚠️ **重要安全提示**: 
+> - `.envrc` 包含敏感信息（API密钥、数据库密码、JWT密钥等）
+> - 该文件已自动加入 `.gitignore`，**请勿提交到版本控制系统**
+> - 生产环境务必使用强随机密钥，不要使用示例中的默认值
+>
+> #### 🛡️ 隐私与本地文件隔离
+> - 实际使用的 `.envrc` 已从 Git 追踪中移除并被忽略，继续使用 `.envrc.example` 作为模板，`cp .envrc.example .envrc` 后仅在本机保存真实凭据。
+> - 本地运行生成的 `logs/`、`.postgresql/`、`.milvus/`、`*.db` 等目录/文件均在 `.gitignore` 中，避免误提交个人数据。
+> - 如果之前已将真实密钥提交过仓库，请立即更换相关密钥/密码并在仓库中清理历史记录（如需要）。
+
+> 📚 **认证系统文档**: 查看 [docs/authentication.md](docs/authentication.md) 了解完整的用户认证和 OAuth 配置指南
+
+> 💡 **可选增强**: 若需开启邮箱验证或 Cloudflare Turnstile，请在 `.envrc` 中配置对应的 SMTP 与 `TURNSTILE_SECRET_KEY`，具体字段与示例可参考 `.envrc.example`。
+
+#### 4. 配置数据库
 
 **项目内置PostgreSQL管理**:
 
@@ -898,32 +963,55 @@ export DATABASE_URL="postgresql+asyncpg://user:password@host:port/dbname"
 - 可移植性: 整个项目目录可以迁移到不同机器,无需重新配置
 - Unix Socket: 使用项目相对路径,避免权限和路径问题
 
-#### 4. 启动 Milvus
+#### 5. 启动 Milvus
 
 **使用项目脚本** (推荐):
 
 ```bash
+# 首次启动前，确保已加载环境变量
+direnv allow  # 或 source .envrc
+
 # 使用项目控制脚本启动 Milvus
 ./scripts/milvus_control.sh start
+
+# 查看 Milvus 状态
+./scripts/milvus_control.sh status
+
+# 查看 Milvus 日志
+./scripts/milvus_control.sh logs
 ```
 
-**手动启动**:
+**手动启动** (不推荐，需要手动设置环境变量):
 
 ```bash
-# 数据会存储在项目的 .milvus 目录
-docker run -d --name milvus-standalone \
-  -p 19530:19530 -p 9091:9091 \
-  -e ETCD_USE_EMBED=true \
-  -v $(pwd)/.milvus:/var/lib/milvus \
-  milvusdb/milvus:latest
+# 确保环境变量已设置
+export DOCKER_VOLUME_DIRECTORY="$(pwd)/external/NeMo-Agent-Toolkit/examples/deploy"
+export MILVUS_CONFIG_DIR="$(pwd)/configs"
+export MILVUS_MEM_LIMIT="6g"
+
+# 使用 Docker Compose 启动
+docker compose -f configs/docker-compose.milvus.local.yml up -d
+
+# 查看日志
+docker compose -f configs/docker-compose.milvus.local.yml logs milvus-standalone --tail=200
+```
+
+**验证连接**:
+
+```bash
+# 测试 Milvus 端口是否可达
+nc -vz localhost 19530
+
+# 查看配置文件是否正确挂载
+docker compose -f configs/docker-compose.milvus.local.yml run --rm milvus ls -l /milvus/configs
 ```
 
 **数据持久化**: 
-- Milvus 数据存储在项目的 `.milvus/` 目录
-- 向量索引和集合数据完全本地化
+- Milvus 数据存储在 `external/NeMo-Agent-Toolkit/examples/deploy/volumes/` 目录
+- 配置文件从 `configs/milvus.yaml` 挂载
 - 支持项目整体迁移
 
-#### 5. 启动后端服务
+#### 6. 启动后端服务
 
 ```bash
 # 方式 1: 使用启动脚本 (推荐)
@@ -945,7 +1033,7 @@ uv run uvicorn mul_in_one_nemo.service.app:create_app \
 - **API 文档**: http://localhost:8000/docs (Swagger UI)
 - **健康检查**: http://localhost:8000/health
 
-#### 6. 启动前端应用
+#### 7. 启动前端应用
 
 ```bash
 # 进入前端目录
@@ -960,7 +1048,9 @@ npm run dev
 
 前端将在 `http://localhost:5173` 运行
 
-### 7. 初始化配置
+> 若需要 OAuth 登录，请确保 `.envrc` 中的 `FRONTEND_URL` 与实际前端地址一致（开发默认 `http://localhost:5173`）。
+
+#### 8. 初始化配置
 
 1. **访问 Web 界面**: 打开 http://localhost:5173
 2. **创建 API Profile**: 导航到 "API Profiles" 页面
@@ -970,7 +1060,7 @@ npm run dev
 4. **创建 Persona**: 添加 AI 人格,设置名称、handle、语气、背景等
 5. **开始对话**: 在 "Sessions" 页面创建新会话,选择 Target Agents 开始聊天!
 
-### 8. 工具优先（NAT）配置与行为
+#### 9. 工具优先（NAT）配置与行为
 - **已注册工具**: `WebSearch` 与 `RagQuery`
 - **调用方式**: LLM 在对话过程中按需通过函数调用触发工具,无需用户使用内联触发器
 - **工具实现**:
@@ -1061,7 +1151,28 @@ class MultiAgentRuntime:
 - **自动刷新**: 每 2 秒自动更新
 - **行数控制**: 选择显示最近 200/500/1000/2000 行
 
+#### 7. 账户设置
+- **资料概览**: 查看邮箱、用户名、角色、验证状态等账户信息
+- **危险操作**: 通过 Account Settings 页面中的“Danger Zone” 执行账号删除，需输入 `DELETE` 二次确认
+- **安全联动**: 删除成功后自动登出并清理本地 token，确保数据彻底移除
+
 ### API 使用示例
+
+#### 注册并通过 Turnstile 验证
+
+```bash
+curl -X POST "http://localhost:8000/api/auth/register-with-captcha" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "test@example.com",
+    "password": "Password123!",
+    "username": "tester",
+    "display_name": "Test User",
+    "turnstile_token": "1x0000000000000000000000000000000AA"
+  }'
+```
+
+> 如果关闭 Turnstile（默认禁用），`turnstile_token` 可省略；开启后必须提供前端 widget 返回的 token。
 
 #### 创建会话
 
@@ -1166,15 +1277,25 @@ echo $DATABASE_URL
 
 **2. Milvus 连接失败**
 ```bash
+# 检查环境变量是否正确设置
+echo $DOCKER_VOLUME_DIRECTORY
+echo $MILVUS_CONFIG_DIR
+echo $MILVUS_MEM_LIMIT
+
 # 检查 Milvus 容器状态
-docker ps | grep milvus
+docker compose -f configs/docker-compose.milvus.local.yml ps
 
 # 查看 Milvus 日志
-docker logs milvus-standalone
+./scripts/milvus_control.sh logs
 
-# 重启 Milvus
+# 重启 Milvus（会自动加载环境变量）
 ./scripts/milvus_control.sh restart
+
+# 验证端口连通性
+nc -vz localhost 19530
 ```
+
+> ⚠️ **常见问题**: 如果直接使用 `docker compose` 命令失败，可能是因为 `DOCKER_VOLUME_DIRECTORY` 未设置。请使用 `./scripts/milvus_control.sh` 脚本，它会自动处理环境变量。
 
 **3. RAG 摄取失败**
 - 检查 DEBUG 页面日志查看详细错误

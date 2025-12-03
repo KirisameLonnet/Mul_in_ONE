@@ -30,6 +30,7 @@ logs/
 # Milvus 数据
 .milvus/
 external/NeMo-Agent-Toolkit/examples/deploy/volumes/
+.docker-volumes/
 
 # Node.js
 node_modules/

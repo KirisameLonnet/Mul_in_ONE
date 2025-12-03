@@ -13,7 +13,7 @@ services:
       - "9001:9001"
       - "9000:9000"
     volumes:
-      - ${DOCKER_VOLUME_DIRECTORY:-external/NeMo-Agent-Toolkit/examples/deploy}/volumes/minio:/minio_data
+      - ${DOCKER_VOLUME_DIRECTORY:-.docker-volumes}/volumes/minio:/minio_data
     command: minio server /minio_data --console-address ":9001"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
@@ -34,7 +34,7 @@ services:
       # Allow higher memory usage threshold
       QUERY_NODE_LOAD_MEMORY_USAGE_MAX_RATE: "0.95"
     volumes:
-      - ${DOCKER_VOLUME_DIRECTORY:-external/NeMo-Agent-Toolkit/examples/deploy}/volumes/milvus:/var/lib/milvus
+      - ${DOCKER_VOLUME_DIRECTORY:-.docker-volumes}/volumes/milvus:/var/lib/milvus
     mem_limit: ${MILVUS_MEM_LIMIT:-8g}
     memswap_limit: ${MILVUS_MEM_LIMIT:-8g}
     shm_size: 2g
@@ -60,7 +60,7 @@ services:
       - ETCD_QUOTA_BACKEND_BYTES=4294967296
       - ETCD_SNAPSHOT_COUNT=50000
     volumes:
-      - ${DOCKER_VOLUME_DIRECTORY:-external/NeMo-Agent-Toolkit/examples/deploy}/volumes/etcd:/etcd
+      - ${DOCKER_VOLUME_DIRECTORY:-.docker-volumes}/volumes/etcd:/etcd
     command: etcd -advertise-client-urls=http://127.0.0.1:2379 -listen-client-urls http://0.0.0.0:2379 --data-dir /etcd
     healthcheck:
       test: ["CMD", "etcdctl", "endpoint", "health"]

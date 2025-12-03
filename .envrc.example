@@ -80,8 +80,9 @@ export MUL_IN_ONE_TEMPERATURE="0.4"
 export PERSONA_AVATAR_DIR=.postgresql/persona_avatars
 
 # --- Docker 和 Milvus 配置 ---
-# Docker 卷根目录（NeMo Toolkit vendor volumes）
-export DOCKER_VOLUME_DIRECTORY="$(pwd)/external/NeMo-Agent-Toolkit/examples/deploy"
+# Docker 卷根目录（存储 etcd, minio, milvus 数据）
+# 注意：不要放在 git 子模块中，应该放在项目根目录
+export DOCKER_VOLUME_DIRECTORY="$(pwd)/.docker-volumes"
 
 # Milvus 配置文件目录
 export MILVUS_CONFIG_DIR="$(pwd)/configs"

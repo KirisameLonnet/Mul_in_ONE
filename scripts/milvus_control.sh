@@ -9,7 +9,8 @@ PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 # Set the path to the Milvus docker-compose file using the absolute path
 # Keep vendor assets untouched by using the project-level override compose
 MILVUS_COMPOSE_FILE="$PROJECT_ROOT/configs/docker-compose.milvus.local.yml"
-: "${DOCKER_VOLUME_DIRECTORY:="$PROJECT_ROOT/external/NeMo-Agent-Toolkit/examples/deploy"}"
+# 注意：不要放在 git 子模块中，应该放在项目根目录
+: "${DOCKER_VOLUME_DIRECTORY:="$PROJECT_ROOT/.docker-volumes"}"
 export MILVUS_CONFIG_PATH="$PROJECT_ROOT/configs/milvus.yaml"
 export MILVUS_CONFIG_DIR="$PROJECT_ROOT/configs"
 export DOCKER_VOLUME_DIRECTORY

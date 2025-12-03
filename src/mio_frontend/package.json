@@ -1,8 +1,0 @@
-{
-  "license": "GPL-3.0-only",
-  "dependencies": {
-    "@devui-design/icons": "^1.4.0",
-    "@matechat/core": "^1.10.0",
-    "vue-devui": "^1.6.34"
-  }
-}

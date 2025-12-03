@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Add PostgreSQL bin to PATH if it exists
+if [ -d "/usr/lib/postgresql/15/bin" ]; then
+    export PATH="/usr/lib/postgresql/15/bin:$PATH"
+fi
+
 # Get the directory where the script is located
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"

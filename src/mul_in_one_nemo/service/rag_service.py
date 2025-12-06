@@ -166,7 +166,15 @@ class RAGService:
             # Production mode: get tenant embedding config
             api_config = await self._api_config_resolver(persona_id, use_embedding=True)
         
-        logger.info(f"Creating embedder for model: {api_config.get('model')}")
+        # Validate embedding configuration
+        if not api_config:
+            raise ValueError(f"No embedding model configured for persona_id={persona_id}")
+        
+        model_name = api_config.get("model")
+        if not model_name:
+            raise ValueError(f"Embedding model name is missing for persona_id={persona_id}")
+        
+        logger.info(f"Creating embedder for persona_id={persona_id}, model: {model_name}")
         
         base_url = api_config.get("base_url", "")
         
@@ -195,7 +203,16 @@ class RAGService:
     def _create_embedder_sync(self, persona_id: Optional[int] = None) -> Embeddings:
         """Create embedder synchronously (for prototype mode)."""
         api_config = self._resolve_api_config_sync(persona_id)
-        logger.info(f"Creating embedder for model: {api_config.get('model')}")
+        
+        # Validate embedding configuration
+        if not api_config:
+            raise ValueError(f"No embedding model configured for persona_id={persona_id}")
+        
+        model_name = api_config.get("model")
+        if not model_name:
+            raise ValueError(f"Embedding model name is missing for persona_id={persona_id}")
+        
+        logger.info(f"Creating embedder for persona_id={persona_id}, model: {model_name}")
         
         base_url = api_config.get("base_url", "")
         
@@ -287,7 +304,7 @@ class RAGService:
         Fetch content from a URL, generate embeddings, and store them in a persona-specific
         Milvus collection.
         """
-        collection_name = f"{username}_persona_{persona_id}_rag"
+        collection_name = f"u_{username}_persona_{persona_id}_rag"
         logger.info(f"Starting ingestion for URL: {url} into collection: {collection_name}")
 
         # 1. Scrape and cache the URL content
@@ -325,9 +342,13 @@ class RAGService:
                 raise ValueError(
                     f"Embedding row count {arr.shape[0]} != chunk count {len(split_docs)}. Do not reshape; one vector per chunk."
                 )
+            # Store dimension for validation
+            actual_dim = arr.shape[1]
             embeddings = arr.tolist()
         except Exception as e:
             logger.warning(f"Embeddings normalization warning: {e}. Proceeding with raw embeddings list.")
+            actual_dim = len(embeddings[0]) if embeddings and len(embeddings) > 0 else None
+        
         # Some providers may return multiple embeddings per input (e.g., variants).
         # Ensure one embedding per chunk to match Milvus num_rows.
         if len(embeddings) != len(split_docs):
@@ -358,6 +379,18 @@ class RAGService:
                 raise ValueError("No embeddings to infer dimension for new collection")
             dim = len(embeddings[0])
             self._create_collection(collection_name, dim)
+        else:
+            # Validate dimension matches existing collection
+            collection = Collection(collection_name)
+            schema = collection.schema
+            # Find vector field and check dimension
+            for field in schema.fields:
+                if field.dtype == DataType.FLOAT_VECTOR:
+                    expected_dim = field.params.get('dim')
+                    if actual_dim and expected_dim and actual_dim != expected_dim:
+                        raise ValueError(
+                            f\"Embedding dimension mismatch: received {actual_dim}, \"\n                            f\"collection '{collection_name}' expects {expected_dim}. \"\n                            f\"Please use a consistent embedding model or recreate the collection.\"\n                        )
+                    break
 
         collection = Collection(collection_name)
         
@@ -397,9 +430,21 @@ class RAGService:
         Ingests raw text, generates embeddings, and stores them in a persona-specific
         Milvus collection.
         """
+        # Type validation for text parameter
+        if not isinstance(text, str):
+            if isinstance(text, list):
+                # If it's a list, join the strings
+                text = "\n".join(str(item) for item in text)
+                logger.warning(f"ingest_text received list, converted to string (length={len(text)})")
+            else:
+                raise TypeError(f"contents must be str or list of str, got {type(text).__name__}")
+        
+        if not text or not text.strip():
+            raise ValueError("Text content is empty or contains only whitespace")
+        
         if source is None:
             source = "raw_text"
-        collection_name = f"{username}_persona_{persona_id}_rag"
+        collection_name = f"u_{username}_persona_{persona_id}_rag"
         logger.info(f"Starting ingestion for text (source={source}) into collection: {collection_name}")
 
         # 1. Create Document object
@@ -429,6 +474,10 @@ class RAGService:
                 raise ValueError(
                     f"Embedding row count {arr.shape[0]} != chunk count {len(split_docs)}. Do not reshape; one vector per chunk."
                 )
+            # Store dimension for validation
+            actual_dim = arr.shape[1]
+            
+            # Validate expected dimension if provided
             if expected_dim is not None and arr.shape[1] != expected_dim:
                 raise ValueError(
                     f"Embedding dim {arr.shape[1]} != expected_dim {expected_dim}. Please adjust model or expected_dim."
@@ -436,6 +485,7 @@ class RAGService:
             embeddings = arr.tolist()
         except Exception as e:
             logger.warning(f"Embeddings normalization warning: {e}. Proceeding with raw embeddings list.")
+            actual_dim = len(embeddings[0]) if embeddings and len(embeddings) > 0 else None
         
         # Connect to Milvus and insert with manual UUIDs
         connections.connect(alias="default", uri=DEFAULT_MILVUS_URI)
@@ -447,6 +497,21 @@ class RAGService:
                 raise ValueError("No embeddings to infer dimension for new collection")
             dim = len(embeddings[0])
             self._create_collection(collection_name, dim)
+        else:
+            # Validate dimension matches existing collection
+            collection = Collection(collection_name)
+            schema = collection.schema
+            # Find vector field and check dimension
+            for field in schema.fields:
+                if field.dtype == DataType.FLOAT_VECTOR:
+                    expected_dim_existing = field.params.get('dim')
+                    if actual_dim and expected_dim_existing and actual_dim != expected_dim_existing:
+                        raise ValueError(
+                            f"Embedding dimension mismatch: received {actual_dim}, "
+                            f"collection '{collection_name}' expects {expected_dim_existing}. "
+                            f"Please use a consistent embedding model or recreate the collection."
+                        )
+                    break
 
         collection = Collection(collection_name)
         
@@ -484,7 +549,7 @@ class RAGService:
         """
         from pymilvus import utility
         
-        collection_name = f"{username}_persona_{persona_id}_rag"
+        collection_name = f"u_{username}_persona_{persona_id}_rag"
         logger.info(f"Attempting to delete documents with source='{source}' from {collection_name}")
 
         try:
@@ -542,7 +607,7 @@ class RAGService:
         """
         from pymilvus import utility
         
-        collection_name = f"{username}_persona_{persona_id}_rag"
+        collection_name = f"u_{username}_persona_{persona_id}_rag"
         logger.info(f"Attempting to delete collection: {collection_name}")
 
         try:
@@ -567,7 +632,7 @@ class RAGService:
         """
         if top_k is None:
             top_k = self.default_top_k
-        collection_name = f"{username}_persona_{persona_id}_rag"
+        collection_name = f"u_{username}_persona_{persona_id}_rag"
         logger.info(f"Creating retriever for collection: {collection_name}")
         
         # Create Milvus vector store and retriever

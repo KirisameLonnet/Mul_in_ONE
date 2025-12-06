@@ -53,9 +53,12 @@ class RagAdapter:
     def _get_collection_name(self, username: str, persona_id: int) -> str:
         """Generate collection name following multi-tenant convention.
         
-        Format: {username}_persona_{persona_id}_rag
+        Format: u_{username}_persona_{persona_id}_rag
+        Ensures collection name starts with a letter (Milvus requirement).
         """
-        return f"{username}_persona_{persona_id}_rag"
+        # Milvus requires collection names to start with a letter or underscore
+        # Prefix with 'u_' to handle usernames that start with digits
+        return f"u_{username}_persona_{persona_id}_rag"
 
     async def search(
         self,

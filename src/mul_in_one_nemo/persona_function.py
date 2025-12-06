@@ -247,11 +247,15 @@ async def persona_dialogue_function(config: PersonaDialogueFunctionConfig, build
                         # 一次性返回完整结果
                         yield PersonaDialogueOutput(response=content)
                     else:
-                        logger.warning(f"_respond_stream: extracted content is empty")
+                        logger.warning(f"_respond_stream: extracted content is empty, falling back to default message")
+                        # 空抽取回退策略：返回友好提示
+                        yield PersonaDialogueOutput(response="[系统提示] 无法生成回复内容，请稍后重试或检查输入。")
                 else:
                     logger.warning(f"_respond_stream: messages list is empty")
+                    yield PersonaDialogueOutput(response="[系统提示] 回复生成失败，消息列表为空。")
             else:
                 logger.error(f"_respond_stream: result_state format unexpected: {type(result_state)}")
+                yield PersonaDialogueOutput(response="[系统提示] 回复格式异常，请稍后重试。")
 
         except Exception as e:
             error_msg = str(e)

@@ -88,7 +88,7 @@ After=network.target
 Type=simple
 WorkingDirectory=$ROOT_DIR
 Environment="PATH=$ROOT_DIR/.venv/bin:/usr/local/bin:/usr/bin:/bin"
-ExecStart=$ROOT_DIR/.venv/bin/uvicorn mul_in_one_nemo.service.app:create_app --host 0.0.0.0 --port 8000
+ExecStart=$ROOT_DIR/.venv/bin/uvicorn mul_in_one_nemo.service.app:create_app --host 0.0.0.0 --port 8000 --reload --reload-dir src --reload-dir configs
 Restart=on-failure
 RestartSec=10
 StandardOutput=append:$ROOT_DIR/logs/backend.log

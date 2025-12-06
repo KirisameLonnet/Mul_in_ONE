@@ -331,14 +331,18 @@ class RAGService:
 
         # Generate embeddings and prepare data for manual insertion
         logger.info("Generating embeddings for document chunks...")
-        embeddings = await embedder.aembed_documents([d.page_content for d in split_docs])
+        # Filter out None or non-string page_content (DeepSeek/OpenAI API compatibility)
+        contents = [str(d.page_content) for d in split_docs if d.page_content is not None]
+        if not contents:
+            raise ValueError("No valid content found in documents after filtering")
+        embeddings = await embedder.aembed_documents(contents)
         try:
             import numpy as np
             arr = np.asarray(embeddings, dtype=float)
             logger.info(f"Embeddings array shape: {arr.shape}")
             if arr.ndim != 2:
                 raise ValueError(f"Embeddings must be 2D, got shape {arr.shape}")
-            if arr.shape[0] != len(split_docs):
+            if arr.shape[0] != len(contents):
                 raise ValueError(
                     f"Embedding row count {arr.shape[0]} != chunk count {len(split_docs)}. Do not reshape; one vector per chunk."
                 )
@@ -468,14 +472,18 @@ class RAGService:
 
         # Generate embeddings and prepare data for manual insertion
         logger.info("Generating embeddings for document chunks...")
-        embeddings = await embedder.aembed_documents([d.page_content for d in split_docs])
+        # Filter out None or non-string page_content (DeepSeek/OpenAI API compatibility)
+        contents = [str(d.page_content) for d in split_docs if d.page_content is not None]
+        if not contents:
+            raise ValueError("No valid content found in documents after filtering")
+        embeddings = await embedder.aembed_documents(contents)
         try:
             import numpy as np
             arr = np.asarray(embeddings, dtype=float)
             logger.info(f"Embeddings array shape: {arr.shape}")
             if arr.ndim != 2:
                 raise ValueError(f"Embeddings must be 2D, got shape {arr.shape}")
-            if arr.shape[0] != len(split_docs):
+            if arr.shape[0] != len(contents):
                 raise ValueError(
                     f"Embedding row count {arr.shape[0]} != chunk count {len(split_docs)}. Do not reshape; one vector per chunk."
                 )

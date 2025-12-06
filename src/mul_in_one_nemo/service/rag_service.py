@@ -389,7 +389,12 @@ class RAGService:
                     expected_dim = field.params.get('dim')
                     if actual_dim and expected_dim and actual_dim != expected_dim:
                         raise ValueError(
-                            f\"Embedding dimension mismatch: received {actual_dim}, \"\n                            f\"collection '{collection_name}' expects {expected_dim}. \"\n                            f\"Please use a consistent embedding model or recreate the collection.\"\n                        )
+                            (
+                                f"Embedding dimension mismatch: received {actual_dim}, "
+                                f"collection '{collection_name}' expects {expected_dim}. "
+                                "Please use a consistent embedding model or recreate the collection."
+                            )
+                        )
                     break
 
         collection = Collection(collection_name)

@@ -46,9 +46,20 @@ class RagAdapter:
         """
         self.embedder_factory = embedder_factory
         self.milvus_uri = milvus_uri
-        # Shared client for connection pooling (lightweight object creation per request)
-        self._client = MilvusClient(uri=milvus_uri)
-        logger.info(f"RagAdapter initialized with Milvus URI: {milvus_uri}")
+        # Lazy-init client: only connect when first used
+        self._client = None
+        logger.info(f"RagAdapter initialized (lazy-connect to Milvus URI: {milvus_uri})")
+    
+    def _get_client(self) -> MilvusClient:
+        """Lazy-initialize and return the Milvus client.
+        
+        This defers connection until first use, allowing Milvus startup time.
+        """
+        if self._client is None:
+            logger.info(f"Connecting to Milvus at {self.milvus_uri}...")
+            self._client = MilvusClient(uri=self.milvus_uri, timeout=30)
+            logger.info("Successfully connected to Milvus")
+        return self._client
 
     def _get_collection_name(self, username: str, persona_id: int) -> str:
         """Generate collection name following multi-tenant convention.
@@ -102,7 +113,7 @@ class RagAdapter:
         # Create per-request retriever instance (lightweight, thread-safe)
         # The shared MilvusClient handles connection pooling
         retriever = MilvusRetriever(
-            client=self._client,
+            client=self._get_client(),
             embedder=embedder,
             content_field="text",  # Match your Milvus schema
         )
@@ -146,6 +157,6 @@ class RagAdapter:
 
     def close(self):
         """Close the shared MilvusClient connection."""
-        if hasattr(self._client, 'close'):
+        if self._client is not None and hasattr(self._client, 'close'):
             self._client.close()
             logger.info("RagAdapter closed Milvus client")

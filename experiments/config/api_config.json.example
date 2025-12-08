@@ -1,0 +1,27 @@
+{
+  "base_url": "http://localhost:8000",
+  "health_path": "/health",
+  "headers": {},
+  "postgres": {
+    "dsn": "postgresql+asyncpg://user:password@localhost:5432/mul_in_one"
+  },
+  "milvus": {
+    "host": "localhost",
+    "port": 19530
+  },
+  "llm": {
+    "base_url": "https://api.siliconflow.cn/v1",
+    "model": "deepseek-ai/DeepSeek-V3.2",
+    "api_key": "留空自己填",
+    "temperature": 0.3
+  },
+  "embedding": {
+    "base_url": "https://api.siliconflow.cn/v1",
+    "model": "deepseek-ai/DeepSeek-Embedding",
+    "api_key": "留空自己填",
+    "dim": 1024
+  },
+  "timeouts": {
+    "healthcheck_seconds": 5
+  }
+}

@@ -1,0 +1,23 @@
+[
+  {
+    "id": "qa_001",
+    "query": "产品A的保修期是多久?",
+    "ground_truth": "产品A提供2年保修服务，包括硬件故障和软件问题。",
+    "relevant_docs": ["doc_warranty_a", "doc_terms_common"],
+    "category": "warranty"
+  },
+  {
+    "id": "qa_002",
+    "query": "如何重置账号密码？",
+    "ground_truth": "点击登录页“忘记密码”，输入注册邮箱获取重置链接。",
+    "relevant_docs": ["doc_reset_flow"],
+    "category": "account"
+  },
+  {
+    "id": "qa_003",
+    "query": "产品B是否支持离线模式？",
+    "ground_truth": "产品B在高级版中支持离线模式，可在设置中开启。",
+    "relevant_docs": ["doc_offline_b"],
+    "category": "feature"
+  }
+]

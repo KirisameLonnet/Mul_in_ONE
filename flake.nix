@@ -25,6 +25,8 @@
             pkgs.docker-compose
             (if pkgs.stdenv.isDarwin then pkgs.colima else null)
             pkgs.zsh
+            pkgs.direnv
+            pkgs.nix-direnv
             pkgs.stdenv.cc.cc.lib
           ];
 

@@ -15,12 +15,12 @@ apis:
   - name: Qwen32B
     base_url: https://api.example.com/v1
     model: Qwen/Qwen3-32B
-    api_key: sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxoxztexx
+    api_key: sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
     temperature: 0.4
   - name: deepseek
     base_url: https://api.example.com/v1
     model: deepseek-ai/DeepSeek-V3.2-Exp
-    api_key: sk-pbvpcfuoexxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxzteahgbrr
+    api_key: sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
     temperature: 0.4
 default_api: Qwen32B
 persona_bindings:

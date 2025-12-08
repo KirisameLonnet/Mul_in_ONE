@@ -1,0 +1,17 @@
+{
+  "experiment": {
+    "name": "Multi-Agent Scheduler Evaluation",
+    "version": "1.0"
+  },
+  "dataset": {
+    "conversation_file": "datasets/conversations.json"
+  },
+  "persona": {
+    "username": "eval_user",
+    "persona_id": 2
+  },
+  "output": {
+    "results_file": "results/exp2_results.json",
+    "figures_dir": "results/figures"
+  }
+}

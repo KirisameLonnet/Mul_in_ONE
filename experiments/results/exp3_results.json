@@ -1,0 +1,14 @@
+{
+  "cases": 2,
+  "token_saving_rate": 0.367,
+  "baseline_token_avg": 992.0,
+  "tool_first_token_avg": 628.0,
+  "baseline_latency_s": 1.48,
+  "tool_first_latency_s": 1.422,
+  "metrics": [
+    "token_efficiency",
+    "f1_score",
+    "semantic_similarity",
+    "tool_call_accuracy"
+  ]
+}

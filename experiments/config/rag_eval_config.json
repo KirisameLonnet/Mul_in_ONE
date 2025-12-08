@@ -1,0 +1,18 @@
+{
+  "experiment": {
+    "name": "RAG Retrieval Quality Evaluation",
+    "version": "1.0"
+  },
+  "dataset": {
+    "qa_file": "datasets/product_qa.json",
+    "top_k_values": [1, 3, 5]
+  },
+  "persona": {
+    "username": "eval_user",
+    "persona_id": 2
+  },
+  "output": {
+    "results_file": "results/exp1_results.json",
+    "figures_dir": "results/figures"
+  }
+}

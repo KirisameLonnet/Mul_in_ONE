@@ -1,0 +1,12 @@
+{
+  "experiment": {
+    "name": "Multi-Agent Scheduler Evaluation",
+    "version": "1.0"
+  },
+  "total_conversations": 2,
+  "personas_evaluated": 0,
+  "max_agents_per_turn": 2,
+  "participation_stats": {},
+  "response_times": {},
+  "scheduler_fairness": 0.0
+}

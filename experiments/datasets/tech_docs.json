@@ -1,0 +1,22 @@
+[
+  {
+    "id": "doc_warranty_a",
+    "title": "产品A保修政策",
+    "content": "产品A提供2年保修服务，覆盖硬件与软件问题，需凭发票。"
+  },
+  {
+    "id": "doc_terms_common",
+    "title": "通用保修条款",
+    "content": "所有产品默认1年保修，可扩展至2年，需注册账户。"
+  },
+  {
+    "id": "doc_reset_flow",
+    "title": "密码重置流程",
+    "content": "在登录页面点击忘记密码，输入邮箱，系统将发送重置链接。"
+  },
+  {
+    "id": "doc_offline_b",
+    "title": "产品B离线模式",
+    "content": "高级版用户可在设置中开启离线模式，部分功能受限。"
+  }
+]

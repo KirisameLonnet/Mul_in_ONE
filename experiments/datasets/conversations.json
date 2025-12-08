@@ -1,0 +1,14 @@
+[
+  [
+    {"speaker": "user", "message": "我们需要设计一个新的API接口", "mentions": []},
+    {"speaker": "产品经理", "message": "先明确业务目标与功能范围。", "mentions": []},
+    {"speaker": "user", "message": "@后端工程师 技术上可行吗？", "mentions": ["后端工程师"]},
+    {"speaker": "后端工程师", "message": "可行，建议使用RESTful并提供分页。", "mentions": []},
+    {"speaker": "前端工程师", "message": "前端需要统一返回格式，错误码请提前定义。", "mentions": []}
+  ],
+  [
+    {"speaker": "user", "message": "我们要发布一个新功能，需要测试计划", "mentions": []},
+    {"speaker": "测试工程师", "message": "会准备功能、性能与安全测试用例。", "mentions": []},
+    {"speaker": "产品经理", "message": "请明确上线窗口和回滚方案。", "mentions": []}
+  ]
+]

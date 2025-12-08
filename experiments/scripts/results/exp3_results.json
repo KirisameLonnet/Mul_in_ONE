@@ -1,0 +1,26 @@
+{
+  "experiment": {
+    "name": "Tool-First vs Baseline RAG Comparison",
+    "version": "1.0"
+  },
+  "seed": 42,
+  "baseline": {
+    "token_avg": 0,
+    "token_std": 0,
+    "latency_avg_s": 0,
+    "latency_std_s": 0,
+    "queries_evaluated": 0
+  },
+  "tool_first": {
+    "token_avg": 0,
+    "token_std": 0,
+    "latency_avg_s": 0,
+    "latency_std_s": 0,
+    "avg_tool_calls": 0,
+    "queries_evaluated": 0
+  },
+  "comparison": {
+    "token_saving_rate": 0,
+    "latency_improvement_rate": 0
+  }
+}

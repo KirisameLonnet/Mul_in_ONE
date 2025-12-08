@@ -39,9 +39,17 @@ else
     echo "  uv venv && source .venv/bin/activate && uv sync"
 fi
 
-# Load environment variables
-# shellcheck disable=SC1091
-source "$ROOT_DIR/.envrc"
+# Load environment variables using direnv or nix-shell
+if command -v direnv >/dev/null 2>&1; then
+    eval "$(direnv export bash)"
+elif command -v nix-shell >/dev/null 2>&1; then
+    # If direnv is not available, use nix-shell
+    exec nix-shell --run "$(printf '%q ' "$0" "$@")"
+else
+    echo "Warning: Neither direnv nor nix-shell found. Environment may be incomplete."
+    # Try to source .envrc as fallback (will fail on 'use flake' but continue)
+    source "$ROOT_DIR/.envrc" 2>/dev/null || true
+fi
 
 # Check if Milvus is running
 check_milvus() {

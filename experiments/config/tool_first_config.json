@@ -1,0 +1,20 @@
+{
+  "experiment": {
+    "name": "Tool-First vs Baseline RAG Comparison",
+    "version": "1.0"
+  },
+  "baseline": {
+    "top_k": 5
+  },
+  "dataset": {
+    "test_cases": "datasets/comparison_qa.json"
+  },
+  "persona": {
+    "username": "eval_user",
+    "persona_id": 2
+  },
+  "output": {
+    "results_file": "results/exp3_results.json",
+    "figures_dir": "results/figures"
+  }
+}

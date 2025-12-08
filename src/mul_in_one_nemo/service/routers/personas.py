@@ -167,6 +167,21 @@ class PersonaIngestResponse(BaseModel):
     collection_name: str | None = Field(default=None, description="Milvus collection name used")
 
 
+class RAGRetrieveRequest(BaseModel):
+    query: str = Field(..., description="Query text for RAG retrieval")
+    top_k: int = Field(default=4, ge=1, le=100, description="Number of documents to retrieve")
+
+
+class RAGPassage(BaseModel):
+    text: str = Field(..., description="Document content")
+    source: str | None = Field(default=None, description="Document source")
+
+
+class RAGRetrieveResponse(BaseModel):
+    passages: list[RAGPassage] = Field(default_factory=list, description="Retrieved passages")
+    total_retrieved: int = Field(..., description="Total number of passages retrieved")
+
+
 class EmbeddingConfigUpdate(BaseModel):
     api_profile_id: int | None = Field(default=None, ge=1, description="API Profile ID for embedding model")
     actual_embedding_dim: int | None = Field(default=None, ge=32, le=8192, description="Actual embedding dimension to use (32-8192)")
@@ -483,6 +498,44 @@ async def ingest_text(
     except Exception as exc:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc)) from exc
 
+
+@router.post("/personas/{persona_id}/rag/retrieve", response_model=RAGRetrieveResponse, status_code=status.HTTP_200_OK)
+async def retrieve_documents(
+    persona_id: int,
+    payload: RAGRetrieveRequest,
+    username: str = Query(..., description="User identifier"),
+    top_k: int = Query(default=4, ge=1, le=100, description="Number of documents to retrieve"),
+    rag_service: RAGService = Depends(get_rag_service),
+) -> RAGRetrieveResponse:
+    """Retrieve documents from Persona's RAG knowledge base."""
+    try:
+        logger.info("Retrieving documents for persona_id=%s user=%s query=%s top_k=%s", 
+                   persona_id, username, payload.query, top_k)
+        
+        # Call RAG service to retrieve documents
+        docs = await rag_service.retrieve_documents(
+            query=payload.query,
+            persona_id=persona_id,
+            username=username,
+            top_k=top_k
+        )
+        
+        # Convert Document objects to RAGPassage objects
+        passages = [
+            RAGPassage(
+                text=doc.page_content,
+                source=doc.metadata.get("source") if doc.metadata else None
+            )
+            for doc in docs
+        ]
+        
+        return RAGRetrieveResponse(
+            passages=passages,
+            total_retrieved=len(passages)
+        )
+    except Exception as exc:
+        logger.exception("Error retrieving documents: %s", exc)
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc)) from exc
 
 
 @router.post("/personas/{persona_id}/refresh_rag", response_model=PersonaIngestResponse, status_code=status.HTTP_200_OK)

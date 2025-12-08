@@ -1,0 +1,14 @@
+[
+  {
+    "id": "cmp_001",
+    "query": "请问产品A支持哪些支付方式？",
+    "ground_truth": "产品A支持信用卡、PayPal和银行转账。",
+    "relevant_docs": ["doc_terms_common"]
+  },
+  {
+    "id": "cmp_002",
+    "query": "离线模式下还能同步数据吗？",
+    "ground_truth": "离线模式下不会同步，恢复联网后自动同步。",
+    "relevant_docs": ["doc_offline_b"]
+  }
+]

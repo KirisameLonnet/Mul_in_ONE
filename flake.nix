@@ -23,6 +23,8 @@
             pkgs.postgresql_16
             pkgs.docker
             pkgs.docker-compose
+            pkgs.chktex
+            pkgs.texlive.combined.scheme-full
             (if pkgs.stdenv.isDarwin then pkgs.colima else null)
             pkgs.zsh
             pkgs.stdenv.cc.cc.lib

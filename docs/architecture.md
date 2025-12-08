@@ -2,7 +2,7 @@
 
 ## 1. 项目概述
 
-Mio（Mul-in-One）是一个 Persona 驱动、RAG 增强、可观测编排的多智能体协作系统。基于 NVIDIA NeMo Agent Toolkit 构建,面向企业知识问答与复杂任务执行场景,实现从意图解析到跨智能体闭环协作的工程化落地。系统支持多租户 SaaS 架构,提供完整的数据库持久化、REST/WebSocket 实时通信及前端可视化交互能力。
+Mio（Mul-in-One）是一个 Persona 驱动、RAG 增强、可观测编排的多智能体协作系统。基于 NVIDIA NeMo Agent Toolkit 构建,实现从意图解析到跨智能体闭环协作的工程化落地。系统支持多用户服务,提供完整的数据库持久化、REST/WebSocket 实时通信及前端可视化交互能力。
 
 ## 2. 架构设计原则
 
@@ -13,10 +13,10 @@ Mio（Mul-in-One）是一个 Persona 驱动、RAG 增强、可观测编排的多
    - 清晰的分层架构,服务间低耦合高内聚
    - 插件化 Persona 与工具函数注册机制
    - 支持多 LLM 提供商动态切换
-2. **多租户隔离与安全**
+2. **用户隔离与安全**
 
-   - 数据库层面的租户分区(Tenant Isolation)
-   - Milvus Collection 按 Persona 隔离存储
+   - 数据库层面的用户分区，避免不同账户间的数据串扰
+   - Milvus Collection 按 Persona 隔离存储，命名规范化为 `u_{username}_persona_{persona_id}_rag` 以满足前缀规则并防止账户间串集
    - API 密钥加密存储,HTTPS/WSS 加密传输
 3. **可观测性与可解释性**
 
@@ -142,37 +142,44 @@ graph TD
    - 单例模式实现
    - 服务实例管理
 
-   9. **运行时模块** ([src/mul_in_one_nemo/runtime.py](src/mul_in_one_nemo/runtime.py:19))
+9. **认证与账号模块** ([src/mul_in_one_nemo/auth/](src/mul_in_one_nemo/auth/))
+
+   - 基于 FastAPI-Users 的 JWT/OAuth 登录、注册、密码重置
+   - Turnstile 人机验证可选启用 (`turnstile.py`)
+   - 邮箱验证与邮件发送 (`email.py`)，支持 SMTP 配置
+   - OAuth 提供商封装（Gitee/GitHub），账号管理与权限检查
+
+10. **运行时模块** ([src/mul_in_one_nemo/runtime.py](src/mul_in_one_nemo/runtime.py:19))
 
    - 与 NVIDIA NeMo Agent Toolkit 集成
    - 多智能体运行时环境
    - 注册 Persona 函数与通用工具（WebSearch、RagQuery）
-9. **调度器模块** ([src/mul_in_one_nemo/scheduler.py](src/mul_in_one_nemo/scheduler.py:19))
+11. **调度器模块** ([src/mul_in_one_nemo/scheduler.py](src/mul_in_one_nemo/scheduler.py:19))
 
    - 多智能体对话调度
    - 主动性计算
    - 冷却机制管理
-10. **内存管理模块** ([src/mul_in_one_nemo/memory.py](src/mul_in_one_nemo/memory.py:20))
+12. **内存管理模块** ([src/mul_in_one_nemo/memory.py](src/mul_in_one_nemo/memory.py:20))
 
     - 对话历史管理
     - 消息存储和检索
-11. **Persona模块** ([src/mul_in_one_nemo/persona.py](src/mul_in_one_nemo/persona.py:10))
+13. **Persona模块** ([src/mul_in_one_nemo/persona.py](src/mul_in_one_nemo/persona.py:10))
 
     - Persona 模型定义
     - YAML 配置文件加载
     - Persona 设置管理
-12. **CLI模块** ([src/mul_in_one_nemo/cli.py](src/mul_in_one_nemo/cli.py:36))
+14. **CLI模块** ([src/mul_in_one_nemo/cli.py](src/mul_in_one_nemo/cli.py:36))
 
     - 命令行接口实现
     - 交互式对话驱动
-13. **RAG服务模块** ([src/mul_in_one_nemo/service/rag_service.py](src/mul_in_one_nemo/service/rag_service.py:1))
+15. **RAG服务模块** ([src/mul_in_one_nemo/service/rag_service.py](src/mul_in_one_nemo/service/rag_service.py:1))
 
     - 知识库摄取（URL/文本）
     - Milvus 向量存储集成
     - 文档检索（供 RagQuery 工具调用）
-    - 支持动态租户配置（tenant_id 关联）
+   - 支持按用户/账户的动态配置（user_id 关联）
     - LangChain 集成（Embeddings, LLM）
-14. **工具模块**（NAT 标准化实现 - Tool-First 设计）
+16. **工具模块**（NAT 标准化实现 - Tool-First 设计）
 
     Mio 采用**工具优先(Tool-First)**设计理念,将知识检索和外部能力封装为标准化的NAT工具,由LLM根据对话上下文**按需调用**,而非预先注入上下文。这种设计显著提升了系统灵活性和token效率。
 
@@ -202,7 +209,7 @@ graph TD
                       → RagQuery("产品A特性") → 检索 → LLM融合生成
                       ↓ 优势: 按需检索,Token高效,支持多轮对话
       ```
-15. **调试与监控模块**
+17. **调试与监控模块**
 
     - **调试路由** ([src/mul_in_one_nemo/service/routers/debug.py](src/mul_in_one_nemo/service/routers/debug.py))
       - 提供系统运行时状态查询接口
@@ -218,7 +225,7 @@ graph TD
       - API调用链路追踪
       - 错误堆栈和异常捕获
       - 调试模式开关
-16. **RAG依赖模块** ([src/mul_in_one_nemo/service/rag_dependencies.py](src/mul_in_one_nemo/service/rag_dependencies.py:1))
+18. **RAG依赖模块** ([src/mul_in_one_nemo/service/rag_dependencies.py](src/mul_in_one_nemo/service/rag_dependencies.py:1))
 
     - 轻量级单例访问器
     - 避免循环依赖
@@ -294,9 +301,14 @@ graph LR
    - WebSocket 连接管理
 6. **UI组件**:
 
-   - 登录页面 ([LoginPage.vue](src/mio_frontend/mio-frontend/src/pages/LoginPage.vue:1))
-     - 用户认证和登录
-     - 租户选择
+    - 登录页面 ([LoginPage.vue](src/mio_frontend/mio-frontend/src/pages/LoginPage.vue:1))
+       - 用户认证和登录
+       - 可选账号/空间选择
+      - 注册页面 ([RegisterPage.vue](src/mio_frontend/mio-frontend/src/pages/RegisterPage.vue:1))
+         - 支持邮箱注册、密码校验
+         - 可选 Turnstile 验证
+      - 邮箱验证页面 ([VerifyEmailPage.vue](src/mio_frontend/mio-frontend/src/pages/VerifyEmailPage.vue:1))
+         - 处理验证链接，展示验证状态
    - 会话列表页面 ([SessionsPage.vue](src/mio_frontend/mio-frontend/src/pages/SessionsPage.vue:1))
      - 显示所有会话列表
      - 创建新会话
@@ -316,6 +328,12 @@ graph LR
      - **实时显示Agent发言状态** (Thinking/Speaking/Cooldown)
      - 流式消息显示
      - 支持@提及特定Agent
+      - 账户设置页面 ([AccountSettingsPage.vue](src/mio_frontend/mio-frontend/src/pages/AccountSettingsPage.vue:1))
+         - 查看账号属性、邮箱验证状态
+         - 支持账户删除等危险操作
+      - 管理员用户管理页面 ([AdminUsersPage.vue](src/mio_frontend/mio-frontend/src/pages/AdminUsersPage.vue:1))
+         - 查看/筛选用户
+         - 重置密码、删除账号等管理操作
    - **调试页面** ([DebugPage.vue](src/mio_frontend/mio-frontend/src/pages/DebugPage.vue:1))
      - 查看系统运行时状态
      - 监控活跃会话和Persona加载情况
@@ -363,22 +381,22 @@ graph LR
 
 ### 核心业务实体
 
-1. **Tenant (租户)**:
+1. **Account (用户账号)**:
 
-   - 多租户架构支持
-   - 用户和资源隔离
-   - **全局配置管理**:
-     - 租户级Embedding API配置(tenant_embedding_api_profile)
-     - 统一的向量化策略管理
-     - 配额和资源限制
-   - **数据隔离**:
-     - PostgreSQL数据库按tenant_id分区
-     - Milvus Collection按Persona隔离(间接实现租户隔离)
-     - API密钥加密存储
-2. **User (用户)**:
+    - 以账号为边界的资源与数据隔离
+    - **全局配置管理**:
+       - 用户级 Embedding API 配置 (user_embedding_api_profile)
+       - 统一的向量化策略管理
+       - 配额和资源限制
+    - **数据隔离**:
+       - PostgreSQL 数据库按账号分区
+       - Milvus Collection 按 Persona 隔离，集合名规范化为 `u_{username}_persona_{persona_id}_rag`，确保账号间隔离
+       - API 密钥加密存储
+2. **User Profile (登录用户)**:
 
-   - 用户身份管理
-   - 与租户关联
+    - 登录用户身份信息
+    - 与账号绑定（单用户场景即当前账号）
+    - 权限/角色标记（如管理员）
 3. **Persona (角色)**:
 
    - AI Agent 的人格定义
@@ -387,7 +405,7 @@ graph LR
    - 支持背景经历字段（自动摄取到 RAG 知识库，通过RagQuery工具按需检索）
    - **创建时自动化流程**:
      - 解析并验证Persona配置
-     - 自动创建Milvus Collection (persona_{id}_collection)
+       - 自动创建 Milvus Collection (`u_{username}_persona_{persona_id}_rag`)，确保集合名前缀合法
      - 将background字段自动切片、向量化并摄取到知识库
      - 支持URL和文本两种知识源
      - 支持后续追加知识摄取和RAG刷新
@@ -400,7 +418,7 @@ graph LR
    - **支持多种配置类型**:
      - LLM API 配置(用于对话生成)
      - Embedding API 配置(用于RAG向量化)
-     - 租户级全局配置(Tenant Embedding Profile)
+   - 用户级全局配置(User Embedding Profile)
    - **健康检查功能**:
      - 实时测试API连接状态
      - 验证API密钥有效性
@@ -443,11 +461,11 @@ graph TB
         Embed --> VecStore[向量存储]
     end
   
-    subgraph 存储层
-        VecStore --> Milvus[(Milvus 向量数据库)]
-        Milvus --> C1[persona_1_collection]
-        Milvus --> C2[persona_2_collection]
-        Milvus --> CN[persona_N_collection]
+   subgraph 存储层
+      VecStore --> Milvus[(Milvus 向量数据库)]
+      Milvus --> C1[u_demo_persona_1_rag]
+      Milvus --> C2[u_demo_persona_2_rag]
+      Milvus --> CN[u_demo_persona_N_rag]
     end
   
     subgraph 检索层
@@ -490,6 +508,7 @@ Mio 支持多种数据源的知识库构建：
 - **维度**: 根据模型选择（如 OpenAI text-embedding-3-small: 1536 维）
 - **归一化**: 自动进行 L2 归一化，提升相似度计算精度
 - **批量处理**: 批量调用 Embedding API，提升摄取效率
+- **内容过滤与校验**: 摄取时会过滤空文本/噪声块，写入前校验向量维度与 Milvus 集合 schema 一致，避免脏数据与维度不匹配
 
 ```mermaid
 sequenceDiagram
@@ -514,7 +533,7 @@ sequenceDiagram
         Embed-->>RAG: 返回向量 (1536维)
     end
   
-    RAG->>Milvus: 插入向量到<br/>persona_{id}_collection
+   RAG->>Milvus: 插入向量到<br/>u_{username}_persona_{persona_id}_rag
     Milvus-->>RAG: 确认存储成功
     RAG-->>API: 返回摄取结果<br/>{文档数, 向量数}
     API-->>User: 显示摄取成功
@@ -542,7 +561,7 @@ Milvus 采用 **HNSW（Hierarchical Navigable Small World）** 索引：
 
 支持向量检索 + 标量过滤：
 
-- **租户隔离**: 按 `persona_id` 分集存储，保证多租户数据隔离
+- **用户隔离**: 按 `persona_id` 分集存储，保证不同账户的数据隔离
 - **元数据过滤**: 可按 `source`（来源URL）、`timestamp`（摄取时间）等字段过滤
 - **重排序**: 检索后可按业务规则（如时效性、权威性）二次排序
 
@@ -643,7 +662,7 @@ sequenceDiagram
 **2. 索引优化**
 
 - **定期重建**: 在知识库规模变化 >20% 时触发索引重建，优化检索性能
-- **分区策略**: 按 Persona 分集，避免跨租户检索干扰
+- **分区策略**: 按 Persona 分集，避免跨账号检索干扰
 - **TTL 清理**: 可配置文档过期时间，自动清理过时知识
 
 **3. 质量监控**
@@ -659,23 +678,23 @@ sequenceDiagram
 
 ### 6.1 核心业务流转机制
 
-本节分三个业务流转核心：最短链路—租户选中一个Persona—生成反馈"你"闭环（打通Persona的闭环流程）
+本节分三个业务流转核心：最短链路—用户选中一个Persona—生成反馈"你"闭环（打通Persona的闭环流程）
 
 ##### 6.1.1 业务流程序列图
 
 ```mermaid
 sequenceDiagram
-    participant User as 租户
+   participant User as 用户
     participant Service as 服务层
     participant Persona as Persona管理
     participant RAG as RAG服务
     participant Agent as Agent Runtime
   
-    %% 1. 建表建立与租户注册
-    Note over User,Persona: 1. 建表建立与租户注册
-    User->>Service: 创建租户请求
-    Service->>Persona: 初始化 tenant_id 与 persona_id
-    Persona-->>Service: 返回租户与角色配置，从数据库验证通过后<br/>系统根据动态API配置，启动对应的 Agent Runtime
+   %% 1. 账号注册与初始化
+   Note over User,Persona: 1. 账号注册与初始化
+   User->>Service: 创建账号请求
+   Service->>Persona: 初始化 user_id 与 persona_id
+   Persona-->>Service: 返回账号与角色配置，从数据库验证通过后<br/>系统根据动态API配置，启动对应的 Agent Runtime
   
     %% 2. 消息接收与意图分发
     Note over User,Agent: 2. 消息接收与意图分发
@@ -696,12 +715,12 @@ sequenceDiagram
 
 ##### 6.1.2 关键步骤说明
 
-**1. 建表建立与租户注册**
+**1. 账号注册与初始化**
 
-- 用户注册并获得 `tenant_id`
+- 用户注册并获得 `user_id`
 - 系统初始化 Persona 配置（从 `persona.yaml` 与 `api_configuration.yaml` 解析）
 - 动态绑定 API 配置，准备 Agent Runtime 所需资源
-- 在 Milvus 与数据库中建立租户分区
+- 在 Milvus 与数据库中按账号建立基础表/集合
 
 **2. 消息接收与意图分发**
 
@@ -734,7 +753,7 @@ sequenceDiagram
 - **人设持久化**：Persona 配置驱动能力边界与工具权限，保障上下文一致性
 - **动态 RAG**：支持在线数据注入与索引重建，混合检索提升召回质量
 - **可观测编排**：链路追踪、指标驱动、策略迭代，形成闭环优化
-- **多租户隔离**：租户级数据分区与配额管理，保障 SaaS 交付稳定性
+- **账号隔离**：以用户账号为边界的数据分区与配额管理，保障交付稳定性
 
 ### 6.2 多智能体对话流程
 
@@ -802,7 +821,7 @@ sequenceDiagram
     R->>R: 文本切片 (RecursiveCharacterTextSplitter)
     R->>L: 调用 Embeddings API 生成向量
     L->>R: 返回向量
-    R->>M: 存储到 persona_{id}_collection
+   R->>M: 存储到 u_{username}_persona_{persona_id}_rag
     M->>R: 确认存储成功
     R->>B: 返回摄取结果
     B->>F: 返回状态与文档数
@@ -1113,7 +1132,7 @@ sequenceDiagram
    - 使用加密密钥进行加解密
 2. **认证授权**:
 
-   - 基于租户的资源隔离
+   - 基于账号的资源隔离
    - 用户角色权限控制
 3. **数据传输安全**:
 
@@ -1126,9 +1145,9 @@ sequenceDiagram
 
    - 支持不同的 LLM 提供商
    - 可扩展的 Persona 功能
-2. **多租户支持**:
+2. **多账号/用户隔离支持**:
 
-   - 数据库层面的租户隔离
+   - 数据库层面的账号隔离
    - 可配置的资源限制
 3. **微服务潜力**:
 
@@ -1146,17 +1165,17 @@ Mul-in-One 项目通过结合 FastAPI 的高性能后端和 Vue.js 的现代化�
   - 从预注入RAG转向工具化调用,显著提升Token效率
   - WebSearch和RagQuery工具标准化实现
   - LLM按需决策调用,支持多工具组合
-- ✅ **数据库驱动配置**: 运行时动态解析 Persona 的 API 配置，支持多租户 SaaS 架构
+- ✅ **数据库驱动配置**: 运行时动态解析 Persona 的 API 配置，支持账号级 SaaS 架构
 - ✅ **灵活的会话语义**: 支持无限历史窗口和回合限制，适应不同对话场景
 - ✅ **模块化架构**: 清晰的分层设计便于维护和扩展
 - ✅ **健康检查与调试**:
   - API Profile实时连接测试
   - 调试页面和系统状态监控
   - 详细的操作日志和链路追踪
-- ✅ **租户级全局配置**:
-  - 租户级Embedding API配置
-  - 统一的向量化策略管理
-  - 多租户数据隔离保障
+- ✅ **用户级全局配置**:
+   - 用户级 Embedding API 配置
+   - 统一的向量化策略管理
+   - 账号级数据隔离保障
 
 **近期重要更新**
 
@@ -1175,7 +1194,7 @@ Mul-in-One 项目通过结合 FastAPI 的高性能后端和 Vue.js 的现代化�
 
    - PostgreSQL数据库集成优化
    - 日志系统增强(详细操作记录和错误追踪)
-   - 租户级全局Embedding配置支持
+   - 用户级全局Embedding配置支持
    - 数据库迁移脚本更新(tenant_embedding_api_profile)
 
 通过清晰的架构设计和模块化实现，系统具有良好的可维护性和扩展性，为后续的检索质量优化、多模态支持和企业级功能提供了坚实基础。当前的Tool-First设计为未来集成更多外部工具(如数据库查询、API调用、代码执行等)奠定了良好架构基础。

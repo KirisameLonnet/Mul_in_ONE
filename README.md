@@ -22,7 +22,7 @@ demo已上线，欢迎前来帮我免费测试（
 - **灵活 API 绑定**: 每个 Persona 可绑定不同的 LLM API 配置(模型、温度参数等)
 
 ### 🧠 RAG 知识增强系统
-- **全局 Embedding 配置**: 租户级别的统一 embedding 模型配置
+- **全局 Embedding 配置**: 用户级别的统一 embedding 模型配置
 - **自动向量化**: 创建或更新 Persona 背景时自动分块、向量化并存储到 Milvus
  - **工具化按需检索**: 由 LLM 通过 `RagQuery` 工具按需检索相关背景,提升回复质量与可解释性（不再每轮预注入）
 - **手动刷新控制**: 支持主动触发背景知识的重新摄取和索引
@@ -229,7 +229,7 @@ source .envrc
 > - 本地运行生成的 `logs/`、`.postgresql/`、`.milvus/`、`*.db` 等目录/文件均在 `.gitignore` 中，避免误提交个人数据。
 > - 如果之前已将真实密钥提交过仓库，请立即更换相关密钥/密码并在仓库中清理历史记录（如需要）。
 
-> 📚 **认证系统文档**: 查看 [docs/authentication.md](docs/authentication.md) 了解完整的用户认证和 OAuth 配置指南
+> 📚 **认证提示**: 认证、邮箱验证与 OAuth 所需的环境变量已在 `.envrc.example` 中给出示例，按需开启 SMTP/Turnstile 配置即可
 
 > 💡 **可选增强**: 若需开启邮箱验证或 Cloudflare Turnstile，请在 `.envrc` 中配置对应的 SMTP 与 `TURNSTILE_SECRET_KEY`，具体字段与示例可参考 `.envrc.example`。
 
@@ -309,6 +309,8 @@ docker compose -f configs/docker-compose.milvus.local.yml run --rm milvus ls -l 
 - 配置文件从 `configs/milvus.yaml` 挂载
 - 支持项目整体迁移
 
+> ℹ️ **集合命名变更**: Milvus 集合统一命名为 `u_{username}_persona_{persona_id}_rag`，保证名称以字母/下划线开头并避免账号间串集。升级旧版本后请运行最新数据库迁移并重新启动 Milvus；如果历史集合名称不合规，重新摄取一次可自动按新规则创建。
+
 #### 6. 启动后端服务
 
 ```bash
@@ -354,7 +356,7 @@ npm run dev
 2. **创建 API Profile**: 导航到 "API Profiles" 页面
    - 创建 LLM API 配置 (如 DeepSeek, GPT-4 等)
    - 创建 Embedding API 配置 (如 BAAI/bge-large-zh-v1.5)
-3. **配置全局 Embedding**: 在 "Personas" 页面顶部配置租户级 embedding 模型
+3. **配置全局 Embedding**: 在 "Personas" 页面顶部配置用户级 embedding 模型
 4. **创建 Persona**: 添加 AI 人格,设置名称、handle、语气、背景等
 5. **开始对话**: 在 "Sessions" 页面创建新会话,选择 Target Agents 开始聊天!
 
@@ -627,7 +629,7 @@ nc -vz localhost 19530
  - ✅ NAT 工具优先（WebSearch、RagQuery 已注册并在运行时可发现）
 
 #### RAG 知识增强
-- ✅ 租户级全局 Embedding 配置
+- ✅ 用户级全局 Embedding 配置
 - ✅ Persona 背景自动向量化
 - ✅ Milvus 向量存储和检索
 - ✅ 文本分块和 chunk 管理
@@ -641,7 +643,7 @@ nc -vz localhost 19530
 - ✅ 会话和消息历史存储
 - ✅ Persona 动态配置管理
 - ✅ API Profile 加密存储
-- ✅ 多租户支持
+- ✅ 账号隔离支持
 
 #### Web 应用界面
 - ✅ 会话列表和管理
@@ -682,7 +684,7 @@ nc -vz localhost 19530
 
 #### 中期计划
 - [ ] 用户认证和权限管理
-- [ ] 多租户完整隔离
+- [ ] 账号/用户隔离完善
 - [ ] Persona 导入/导出
 - [ ] 对话模板系统
 - [ ] Agent 行为分析面板

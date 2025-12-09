@@ -41,7 +41,8 @@ async def async_input(prompt: str = "") -> str:
 
 def build_scheduler(personas: Iterable[Persona], max_agents: int) -> TurnScheduler:
     states = [PersonaState(name=p.name, proactivity=p.proactivity) for p in personas]
-    return TurnScheduler(states, max_agents=max_agents)
+    effective_max = len(states) if max_agents <= 0 else max_agents
+    return TurnScheduler(states, max_agents=effective_max)
 
 
 def extract_tags(user_text: str, personas: Iterable[Persona]) -> List[str]:
@@ -127,7 +128,8 @@ async def drive(
     
     # 记录初始用户消息
     memory.add("用户", initial_user_text)
-    context_tags = extract_tags(initial_user_text, runtime.personas)
+    pending_user_mentions = extract_tags(initial_user_text, runtime.personas)
+    pending_agent_mentions: List[str] = []
     
     last_speaker = None
     is_first_round = True
@@ -140,18 +142,25 @@ async def drive(
             print(f"你> {user_msg}")
             memory.add("用户", user_msg)
             # 提取新的 @
-            new_tags = extract_tags(user_msg, runtime.personas)
-            context_tags.extend(new_tags)
+            pending_user_mentions = extract_tags(user_msg, runtime.personas)
+            pending_agent_mentions = []
             last_speaker = "用户"
         
         # 决定谁应该发言
         speakers = scheduler.next_turn(
-            context_tags=context_tags if exchange_round == 0 else None,
+            user_mentions=pending_user_mentions,
+            agent_mentions=pending_agent_mentions,
             last_speaker=last_speaker,
             is_user_message=is_first_round
         )
         
         is_first_round = False
+
+        # 已被调度的 @ 不再重复强制
+        if speakers:
+            spoken = set(speakers)
+            pending_user_mentions = [m for m in pending_user_mentions if m not in spoken]
+            pending_agent_mentions = [m for m in pending_agent_mentions if m not in spoken]
         
         # 如果没有人想说话了，对话自然结束
         if not speakers:
@@ -187,7 +196,9 @@ async def drive(
             
             # 检查回复中是否有新的 @
             new_tags = extract_tags(reply, runtime.personas)
-            context_tags.extend(new_tags)
+            for tag in new_tags:
+                if tag not in pending_agent_mentions and tag not in pending_user_mentions:
+                    pending_agent_mentions.append(tag)
             
             # Agent 发言完成后，检查是否有用户新消息插入
             # 如果有，不打断，而是在下一轮处理

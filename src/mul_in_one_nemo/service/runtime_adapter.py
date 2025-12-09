@@ -276,7 +276,8 @@ class NemoRuntimeAdapter(RuntimeAdapter):
             )
 
             # 2. Set initial context for the turn
-            context_tags = self._extract_tags(user_message_content, persona_settings.personas)
+            pending_user_mentions = self._extract_tags(user_message_content, persona_settings.personas)
+            pending_agent_mentions: list[str] = []
             # Map explicit target handles (if any) to persona names
             user_selected_personas = None  # Track user's explicit selection
             if message.target_personas:
@@ -286,8 +287,8 @@ class NemoRuntimeAdapter(RuntimeAdapter):
                 for target_handle in message.target_personas:
                     persona_name = handle_to_name.get(target_handle)
                     if persona_name:
-                        if persona_name not in context_tags:
-                            context_tags.append(persona_name)
+                        if persona_name not in pending_user_mentions:
+                            pending_user_mentions.append(persona_name)
                         user_selected_personas.append(persona_name)
 
             # Soft closing detection on user message (does not force immediate stop, but limits rounds)
@@ -310,12 +311,12 @@ class NemoRuntimeAdapter(RuntimeAdapter):
             from collections import deque
             heat_window = deque(maxlen=max(1, getattr(self._settings, "stop_patience", 2)))
             seen_speakers: set[str] = set()
-            seen_mentions: set[str] = set(context_tags)
+            seen_mentions: set[str] = set(pending_user_mentions)
             prev_round_vec: Dict[str, int] | None = None
             high_sim_streak = 0
             heat_threshold = float(getattr(self._settings, "stop_heat_threshold", 0.6))
             sim_threshold = float(getattr(self._settings, "stop_similarity_threshold", 0.9))
-            logger.info(f"Starting conversation loop: context_tags={context_tags}, user_selected={user_selected_personas}")
+            logger.info(f"Starting conversation loop: user_mentions={pending_user_mentions}, user_selected={user_selected_personas}")
 
             # 注意：显式停止命令只在 SessionService 层拦截（且仅对“正在流式处理中”生效）
 
@@ -327,23 +328,22 @@ class NemoRuntimeAdapter(RuntimeAdapter):
                 round_text_total = ""
                 round_speakers: list[str] = []
 
-                if user_selected_personas:
-                    speakers = scheduler.next_turn(
-                        context_tags=context_tags if exchange_round == 0 else user_selected_personas,
-                        last_speaker=last_speaker,
-                        is_user_message=is_first_round,
-                    )
-                else:
-                    speakers = scheduler.next_turn(
-                        context_tags=context_tags if exchange_round == 0 else None,
-                        last_speaker=last_speaker,
-                        is_user_message=is_first_round,
-                    )
+                speakers = scheduler.next_turn(
+                    user_mentions=pending_user_mentions,
+                    agent_mentions=pending_agent_mentions,
+                    last_speaker=last_speaker,
+                    is_user_message=is_first_round,
+                )
 
                 logger.info(f"Scheduler returned speakers: {speakers}")
                 if not speakers:
                     logger.info("No speakers selected, breaking loop")
                     break
+
+                if speakers:
+                    spoken_set = set(speakers)
+                    pending_user_mentions = [m for m in pending_user_mentions if m not in spoken_set]
+                    pending_agent_mentions = [m for m in pending_agent_mentions if m not in spoken_set]
                 
                 # Skip if the only speaker is the same as last speaker (prevent self-conversation)
                 if len(speakers) == 1 and speakers[0] == last_speaker and not is_first_round:
@@ -448,10 +448,11 @@ class NemoRuntimeAdapter(RuntimeAdapter):
                     round_text_total += (full_reply or "")
                     # Track mentions for heat computation
                     new_tags = self._extract_tags(full_reply, persona_settings.personas)
-                    context_tags.extend(new_tags)
-                    # dedupe context_tags list size by converting to set then list to prevent unbounded growth
-                    if len(context_tags) > 32:
-                        context_tags = list(dict.fromkeys(context_tags))
+                    for tag in new_tags:
+                        if tag not in pending_agent_mentions and tag not in pending_user_mentions:
+                            pending_agent_mentions.append(tag)
+                    if len(pending_agent_mentions) > 32:
+                        pending_agent_mentions = pending_agent_mentions[-32:]
 
                     # Closing phrase detection on agent reply
                     try:

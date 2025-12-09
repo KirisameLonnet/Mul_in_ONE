@@ -32,14 +32,16 @@ class TurnScheduler:
         silence_threshold: int = 2  # 多少轮无人发言视为冷场
     ) -> None:
         self.personas: Dict[str, PersonaState] = {p.name: p for p in personas}
-        self.max_agents = max_agents
+        # max_agents <= 0 表示不限制，取全部 persona 数
+        self.max_agents = len(self.personas) if max_agents <= 0 else max_agents
         self.turn = 0
         self.silence_threshold = silence_threshold
         self.silence_count = 0  # 连续沉默轮数
 
     def next_turn(
         self, 
-        context_tags: List[str] | None = None,
+        user_mentions: List[str] | None = None,
+        agent_mentions: List[str] | None = None,
         last_speaker: str | None = None,
         is_user_message: bool = True
     ) -> List[str]:
@@ -47,37 +49,53 @@ class TurnScheduler:
         决定下一轮谁应该发言。
         
         Args:
-            context_tags: 被提及的 Agent 名称列表（@某人）
+            user_mentions: 用户 @ 的 Agent 名称列表（最高优先级，保持顺序）
+            agent_mentions: 其他 Agent @ 的名称列表（次高优先级，保持顺序）
             last_speaker: 上一个发言者
             is_user_message: 是否是用户新消息（而非 Agent 回复）
         
         Returns:
             本轮应该发言的 Agent 列表
         """
-        context_tags = context_tags or []
-        
-        # ===== 第一优先级：处理被 @ 的 Agent（绝对优先，保持用户提及顺序） =====
-        if context_tags:
-            chosen_by_mention: List[str] = []
-            for name in context_tags:
+        user_mentions = user_mentions or []
+        agent_mentions = agent_mentions or []
+
+        def _pick_mentions(names: List[str], already: set[str]) -> List[str]:
+            chosen: List[str] = []
+            seen: set[str] = set()
+            for name in names:
+                if name in seen or name in already:
+                    continue
                 persona = self.personas.get(name)
                 if not persona:
                     continue
-                since_last = self.turn - persona.last_turn
-                if since_last > 0:
-                    chosen_by_mention.append(name)
-                if len(chosen_by_mention) >= self.max_agents:
+                # 同一轮内不重复选择刚说过话的
+                if (self.turn - persona.last_turn) <= 0:
+                    continue
+                chosen.append(name)
+                seen.add(name)
+                if len(chosen) + len(already) >= self.max_agents:
                     break
-            if chosen_by_mention:
-                for persona in self.personas.values():
-                    if persona.name in chosen_by_mention:
-                        persona.last_turn = self.turn
-                        persona.consecutive_speaks += 1
-                    else:
-                        persona.consecutive_speaks = 0
-                self.silence_count = 0
-                self.turn += 1
-                return chosen_by_mention
+            return chosen
+        
+        # ===== 第一优先级：处理用户 @ 的 Agent（绝对优先，保持用户提及顺序） =====
+        priority_picks: List[str] = _pick_mentions(user_mentions, set())
+
+        # ===== 第二优先级：其他 Agent @ 的 Agent（优先级低于用户，但高于主动性） =====
+        if len(priority_picks) < self.max_agents:
+            picked_set = set(priority_picks)
+            priority_picks.extend(_pick_mentions(agent_mentions, picked_set))
+
+        if priority_picks:
+            for persona in self.personas.values():
+                if persona.name in priority_picks:
+                    persona.last_turn = self.turn
+                    persona.consecutive_speaks += 1
+                else:
+                    persona.consecutive_speaks = 0
+            self.silence_count = 0
+            self.turn += 1
+            return priority_picks
         
         # ===== 第二优先级：主动发言计算（无人被 @ 时） =====
         candidates: List[tuple[str, float]] = []

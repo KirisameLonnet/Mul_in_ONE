@@ -32,7 +32,7 @@ def create_app() -> FastAPI:
 
     app.include_router(auth_router, prefix="/api")
     app.include_router(sessions.router, prefix="/api")
-    app.include_router(personas.router, prefix="/api")
+    app.include_router(personas.router, prefix="/api/personas")
     app.include_router(admin.router, prefix="/api")
     app.include_router(debug.router, prefix="/api")
 

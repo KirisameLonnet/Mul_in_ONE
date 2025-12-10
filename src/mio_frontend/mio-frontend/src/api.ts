@@ -179,6 +179,7 @@ export interface Session {
   title?: string | null;
   user_display_name?: string | null;
   user_handle?: string | null;
+  participants?: Array<{id: number; name: string; handle: string}>;
 }
 
 export interface APIProfile {
@@ -228,6 +229,7 @@ export interface Persona {
   memory_window: number;
   max_agents_per_turn: number;
   api_profile_id?: number | null;
+  api_profile_name?: string;
   is_default: boolean;
   avatar_path?: string | null;
   api_model?: string;
@@ -272,9 +274,9 @@ export interface CreateSessionPayload {
 }
 
 export interface UpdateSessionPayload {
-  title?: string;
-  user_display_name?: string;
-  user_handle?: string;
+  title?: string | null;
+  user_display_name?: string | null;
+  user_handle?: string | null;
   user_persona?: string;
 }
 
@@ -291,16 +293,16 @@ export const getSessions = async (username: string): Promise<Session[]> => {
   return response.data;
 };
 
-export const getSession = async (sessionId: string, username: string): Promise<Session> => {
+export const getSession = async (sessionId: string, username?: string): Promise<Session> => {
   const response = await api.get<Session>(`/sessions/${sessionId}`, {
-    params: { username },
+    params: username ? { username } : {},
   });
   return response.data;
 };
 
-export const getSessionMessages = async (sessionId: string, username: string): Promise<Message[]> => {
+export const getSessionMessages = async (sessionId: string, username?: string): Promise<Message[]> => {
   const response = await api.get<Message[]>(`/sessions/${sessionId}/messages`, {
-    params: { username },
+    params: username ? { username } : {},
   });
   return response.data;
 };
@@ -399,20 +401,20 @@ export const deleteAPIProfile = async (username: string, profile_id: number): Pr
 };
 
 export const getPersonas = async (username: string): Promise<Persona[]> => {
-  const response = await api.get<Persona[]>('/personas/personas', {
+  const response = await api.get<Persona[]>('/personas', {
     params: { username },
   });
   return response.data;
 };
 
 export const createPersona = async (payload: CreatePersonaPayload): Promise<Persona> => {
-  const response = await api.post<Persona>('/personas/personas', payload);
+  const response = await api.post<Persona>('/personas', payload);
   return response.data;
 };
 
 export const updatePersona = async (persona_id: number, payload: UpdatePersonaPayload): Promise<Persona> => {
   const { username, ...body } = payload;
-  const response = await api.patch<Persona>(`/personas/personas/${persona_id}`, body, {
+  const response = await api.patch<Persona>(`/personas/${persona_id}`, body, {
     params: { username }
   });
   return response.data;
@@ -421,7 +423,7 @@ export const updatePersona = async (persona_id: number, payload: UpdatePersonaPa
 export const uploadPersonaAvatar = async (persona_id: number, file: File, username: string): Promise<Persona> => {
   const formData = new FormData();
   formData.append('file', file);
-  const response = await api.post<Persona>(`/personas/personas/${persona_id}/avatar`, formData, {
+  const response = await api.post<Persona>(`/personas/${persona_id}/avatar`, formData, {
     params: { username },
     headers: { 'Content-Type': 'multipart/form-data' }
   });
@@ -429,7 +431,7 @@ export const uploadPersonaAvatar = async (persona_id: number, file: File, userna
 };
 
 export const deletePersona = async (username: string, persona_id: number): Promise<void> => {
-  await api.delete(`/personas/personas/${persona_id}`, {
+  await api.delete(`/personas/${persona_id}`, {
     params: { username }
   });
 };
